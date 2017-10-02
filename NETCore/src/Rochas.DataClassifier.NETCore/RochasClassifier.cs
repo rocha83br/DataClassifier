@@ -14,11 +14,11 @@ namespace Rochas.DataClassifier.NETCore
     {
         #region Declarations
 
-        static ConcurrentBag<string> groupList = new ConcurrentBag<string>();
+        readonly static ConcurrentBag<string> groupList = new ConcurrentBag<string>();
         static Dictionary<string, SortedSet<uint>> searchTree = new Dictionary<string, SortedSet<uint>>();
-        static ConcurrentDictionary<string, ConcurrentBag<uint>> hashedTree = new ConcurrentDictionary<string, ConcurrentBag<uint>>();
-        static string[] specialChars = { "@", "%", "#", "_", "/", "|", "\\", ";", ":", ".", ",", "*", "(", ")", "[", "]", "+", "-", "=", "\"", "'", "´", "`", "?", "!" };
-        static string[] skipWords = new[] {
+        readonly static ConcurrentDictionary<string, ConcurrentBag<uint>> hashedTree = new ConcurrentDictionary<string, ConcurrentBag<uint>>();
+        readonly static string[] specialChars = { "@", "%", "#", "_", "/", "|", "\\", ";", ":", ".", ",", "*", "(", ")", "[", "]", "+", "-", "=", "\"", "'", "´", "`", "?", "!" };
+        readonly static string[] skipWords = new[] {
         "de","a","o","que","e","do","da","em","um","para","é","com","não","uma","os","no","se","na","por","mais","as","dos","como","mas","foi","ao","ele","das",
         "tem","à","seu","sua","ou","ser","quando","muito","há","nos","já","está","eu","também","só","pelo","pela","até","isso","ela","entre","era","depois","sem",
         "mesmo","aos","ter","seus","quem","nas","me","esse","eles","estão","você","tinha","foram","essa","num","nem","suas","meu","às","minha","têm","numa","pelos",
@@ -68,7 +68,7 @@ namespace Rochas.DataClassifier.NETCore
         {
             group = group.Trim();
 
-            if ((group.Length > 2) || group.Equals("HP"))
+            if ((group.Length > 2) || !group.ToLower().Equals("null"))
             {
                 var filteredGroup = filterSpecialChars(group.Trim().ToLower());
                 var upperGroup = filteredGroup.ToUpper();
