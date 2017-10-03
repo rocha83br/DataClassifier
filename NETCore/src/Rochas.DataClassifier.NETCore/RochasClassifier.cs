@@ -6,20 +6,28 @@ using System.IO;
 using System.Text;
 using System.IO.Compression;
 using Newtonsoft.Json;
-using Rochas.DataClassifier.Extensions;
+using Rochas.DataClassifier.NETCore.Extensions;
+using Rochas.DataClassifier.NETCore.Enumerators;
+using Rochas.SoundEx;
 
-namespace Rochas.DataClassifier
+namespace Rochas.DataClassifier.NETCore
 {
-    public class RochasClassifier
+    public class RochasClassifier : IDisposable
     {
         #region Declarations
 
-        static bool useSensitiveCase;
-        static bool usePhoneticMatch;
+        bool useSensitiveCase;
+        PhoneticMatchType phoneticType;
+
         readonly static ConcurrentBag<string> groupList = new ConcurrentBag<string>();
         static Dictionary<string, SortedSet<uint>> searchTree = new Dictionary<string, SortedSet<uint>>();
         readonly static ConcurrentDictionary<string, ConcurrentBag<uint>> hashedTree = new ConcurrentDictionary<string, ConcurrentBag<uint>>();
+
+        readonly static string languageChars = "àáãçéíóõúÀÁÃÇÉÍÓÕÚ";
+        readonly static string cleanLanguageChars = "aaaceioouAAACEIOOU";
+
         readonly static string[] specialChars = { "@", "%", "#", "_", "/", "|", "\\", ";", ":", ".", ",", "*", "(", ")", "[", "]", "+", "-", "=", "\"", "'", "´", "`", "?", "!" };
+
         readonly static string[] skipWords = new[] {
         "de","a","o","que","e","do","da","em","um","para","é","com","não","uma","os","no","se","na","por","mais","as","dos","como","mas","foi","ao","ele","das",
         "tem","à","seu","sua","ou","ser","quando","muito","há","nos","já","está","eu","também","só","pelo","pela","até","isso","ela","entre","era","depois","sem",
@@ -37,17 +45,17 @@ namespace Rochas.DataClassifier
 
         #region Constructors
 
-        public RochasClassifier(bool sensitiveCase = false, bool phoneticMatch = false)
+        public RochasClassifier(bool sensitiveCase = false, PhoneticMatchType phoneticMatchType = PhoneticMatchType.None)
         {
             useSensitiveCase = sensitiveCase;
-            usePhoneticMatch = phoneticMatch;
+            phoneticType = phoneticMatchType;
         }
 
         #endregion
 
         #region Public Methods
 
-        public static void Init(IEnumerable<string> groups)
+        public void Init(IEnumerable<string> groups)
         {
             if ((groups == null) || (groups.Count() == 0))
                 throw new ArgumentNullException("groups");
@@ -58,7 +66,7 @@ namespace Rochas.DataClassifier
             });
         }
 
-        public static void Init(string filePath)
+        public void Init(string filePath)
         {
             if (string.IsNullOrWhiteSpace(filePath))
                 throw new ArgumentNullException("filePath");
@@ -76,11 +84,11 @@ namespace Rochas.DataClassifier
             Init(groups);
         }
 
-        public static void AddGroup(string group)
+        public void AddGroup(string group)
         {
             group = group.Trim();
 
-            if ((group.Length > 2) || !group.ToLower().Equals("null"))
+            if (!group.ToLower().Equals("null"))
             {
                 var filteredGroup = filterSpecialChars(group.Trim().ToLower());
 
@@ -104,7 +112,7 @@ namespace Rochas.DataClassifier
             }
         }
 
-        public static bool RemoveGroup(string group)
+        public bool RemoveGroup(string group)
         {
             var result = false;
             group = group.Trim();
@@ -131,7 +139,7 @@ namespace Rochas.DataClassifier
             return result;
         }
 
-        public static void Train(string group, string text)
+        public void Train(string group, string text)
         {
             ConcurrentBag<uint> hashedWordList = null;
 
@@ -147,7 +155,7 @@ namespace Rochas.DataClassifier
                 hashedTree.TryAdd(group, hashedWordList);
         }
 
-        public static void Train(string group, IEnumerable<string> mappedList)
+        public void Train(string group, IEnumerable<string> mappedList)
         {
             foreach (var text in mappedList)
             {
@@ -163,7 +171,7 @@ namespace Rochas.DataClassifier
             }
         }
 
-        public static void Train(IEnumerable<string> rawList)
+        public void Train(IEnumerable<string> rawList)
         {
             var reduceList = new ConcurrentBag<string>(rawList);
 
@@ -172,20 +180,19 @@ namespace Rochas.DataClassifier
             prepareSearchTree();
         }
 
-        public static void TrainFromFile(string filePath, int page = 0, int size = 0)
+        public void TrainFromStream(StreamReader streamReader, int page = 0, int size = 0)
         {
             var result = new ConcurrentBag<string>();
-            var fileContent = File.OpenText(filePath);
 
             int itemsCount = 0;
-            while (!fileContent.EndOfStream)
+            while (!streamReader.EndOfStream)
             {
                 var offset = (page * size);
 
                 if (((page == 0) && (itemsCount < size))
                     || ((page > 0) && (itemsCount > offset)))
                 {
-                    var lineContent = fileContent.ReadLine();
+                    var lineContent = streamReader.ReadLine();
                     result.Add(lineContent);
                 }
 
@@ -198,13 +205,23 @@ namespace Rochas.DataClassifier
             Train(result);
         }
 
-        public static string SaveTrainingData()
+        public void TrainFromFile(string filePath, int page = 0, int size = 0)
         {
-            var content = JsonConvert.SerializeObject(hashedTree);
-            return compressText(content);
+            var result = new ConcurrentBag<string>();
+            var fileContent = File.OpenText(filePath);
+
+            TrainFromStream(fileContent, page, size);
         }
 
-        public static void SaveTrainingData(string filePath)
+        public string SaveTrainingData()
+        {
+            var content = JsonConvert.SerializeObject(hashedTree);
+
+            //return compressText(content);
+            return content;
+        }
+
+        public void SaveTrainingData(string filePath)
         {
             if (string.IsNullOrWhiteSpace(filePath))
                 throw new ArgumentNullException("filePath");
@@ -214,18 +231,20 @@ namespace Rochas.DataClassifier
             File.WriteAllText(filePath, compressedContent);
         }
 
-        public static void FromTrainingData(string filePath)
+        public void FromTrainingData(string filePath)
         {
             if (string.IsNullOrWhiteSpace(filePath))
                 throw new ArgumentNullException("filePath");
 
             var compressedContent = File.OpenText(filePath);
-            var content = uncompressText(compressedContent.ReadToEnd());
+
+            //var content = uncompressText(compressedContent.ReadToEnd());
+            var content = compressedContent.ReadToEnd();
 
             searchTree = JsonConvert.DeserializeObject<Dictionary<string, SortedSet<uint>>>(content);
         }
 
-        public static IDictionary<string, int> Classify(string text)
+        public IDictionary<string, int> Classify(string text)
         {
             if (string.IsNullOrWhiteSpace(text))
                 throw new ArgumentNullException("text");
@@ -245,14 +264,28 @@ namespace Rochas.DataClassifier
             return scoreResult;
         }
 
-        public static void Flush()
+        public void Flush()
         {
             hashedTree.Clear();
+        }
+
+        public void Dispose()
+        {
+            GC.ReRegisterForFinalize(this);
         }
 
         #endregion
 
         #region Helper Methods
+
+        public static string filterLanguageChars(string value)
+        {
+            int charCount = 0;
+            foreach (var character in languageChars)
+                value = value.Replace(character, cleanLanguageChars[charCount++]);
+
+            return value;
+        }
 
         private static string filterSpecialChars(string value)
         {
@@ -262,20 +295,27 @@ namespace Rochas.DataClassifier
             return value;
         }
 
-        private static void stemmHash(string word, ConcurrentBag<uint> hashedWordList)
+        private void stemmHash(string word, ConcurrentBag<uint> hashedWordList)
         {
             var trimmedWord = word.Trim();
             if (!string.IsNullOrWhiteSpace(trimmedWord) && !skipWords.Contains(trimmedWord))
             {
                 using (var stemmer = PTStemmer.Stemmer.StemmerFactory())
                 {
+                    string treatedWord = string.Empty;
                     uint hashedWord = 0;
+
                     stemmer.DisableCaching();
+                    treatedWord = stemmer.Stemming(trimmedWord.ToLower());
 
-                    hashedWord = stemmer.Stemming(trimmedWord.ToLower()).GetCustomHashCode();                    
+                    if (phoneticType != PhoneticMatchType.None)
+                        treatedWord = filterLanguageChars(treatedWord);
+                    
+                    hashedWord = treatedWord.GetCustomHashCode();
+                    hashedWordList.Add(hashedWord);
 
-                    if (!hashedWordList.Contains(hashedWord))
-                        hashedWordList.Add(hashedWord);
+                    if (phoneticType == PhoneticMatchType.UseSondexAlgorithm)
+                        hashedWordList.Add(RochasSoundEx.Generate(treatedWord).GetCustomHashCode());
                 }
             }
         }
@@ -291,7 +331,7 @@ namespace Rochas.DataClassifier
             }
         }
 
-        private static void mapReduce(ConcurrentBag<string> reduceList)
+        private void mapReduce(ConcurrentBag<string> reduceList)
         {
             var startTime = DateTime.Now;
             Console.WriteLine("Start...");
@@ -351,7 +391,7 @@ namespace Rochas.DataClassifier
         {
             var result = new Dictionary<string, int>();
 
-            int maxScore = groupScore.Sum(grp => grp.Value);
+            int maxScore = groupScore.Max(grp => grp.Value);
 
             foreach (var group in groupScore)
             {
@@ -364,54 +404,55 @@ namespace Rochas.DataClassifier
             return result;
         }
 
-        private static byte[] compressBinary(byte[] rawSource)
-        {
-            var memDestination = new MemoryStream();
-            var memSource = new MemoryStream(rawSource);
-            using (var gzipStream = new GZipStream(memDestination, CompressionMode.Compress))
-            {
-                memSource.CopyTo(gzipStream);
+        //private static byte[] compressBinary(byte[] rawSource)
+        //{
+        //    var memDestination = new MemoryStream();
+        //    var memSource = new MemoryStream(rawSource);
+        //    var gzipStream = new GZipStream(memDestination, CompressionMode.Compress);
+            
+        //    memSource.CopyTo(gzipStream);
 
-                return memDestination.ToArray();
-            }
-        }
+        //    gzipStream.Close();
 
-        private static byte[] uncompressBinary(byte[] compressedSource)
-        {
-            byte[] unpackedContent = new byte[compressedSource.Length * 20];
-            var memSource = new MemoryStream(compressedSource);
+        //    return memDestination.ToArray();
+        //}
 
-            var gzipStream = new GZipStream(memSource, CompressionMode.Decompress);
+        //private static byte[] uncompressBinary(byte[] compressedSource)
+        //{
+        //    byte[] unpackedContent = new byte[compressedSource.Length * 20];
+        //    var memSource = new MemoryStream(compressedSource);
 
-            var readedBytes = gzipStream.Read(unpackedContent, 0, unpackedContent.Length);
+        //    var gzipStream = new GZipStream(memSource, CompressionMode.Decompress);
 
-            var memDestination = new MemoryStream(unpackedContent, 0, readedBytes);
+        //    var readedBytes = gzipStream.Read(unpackedContent, 0, unpackedContent.Length);
 
-            return memDestination.ToArray();
-        }
+        //    var memDestination = new MemoryStream(unpackedContent, 0, readedBytes);
 
-        private static string compressText(string rawText)
-        {
-            byte[] rawBinary = null;
-            byte[] compressedBinary = null;
+        //    return memDestination.ToArray();
+        //}
 
-            rawBinary = ASCIIEncoding.ASCII.GetBytes(rawText);
+        //private static string compressText(string rawText)
+        //{
+        //    byte[] rawBinary = null;
+        //    byte[] compressedBinary = null;
 
-            compressedBinary = compressBinary(rawBinary);
+        //    rawBinary = ASCIIEncoding.ASCII.GetBytes(rawText);
 
-            return Convert.ToBase64String(compressedBinary);
-        }
+        //    compressedBinary = compressBinary(rawBinary);
 
-        private static string uncompressText(string compressedText)
-        {
-            string result = string.Empty;
-            byte[] compressedBinary = Convert.FromBase64String(compressedText);
-            byte[] destinBinary = uncompressBinary(compressedBinary);
+        //    return Convert.ToBase64String(compressedBinary);
+        //}
 
-            result = new string(ASCIIEncoding.ASCII.GetChars(destinBinary));
+        //private static string uncompressText(string compressedText)
+        //{
+        //    string result = string.Empty;
+        //    byte[] compressedBinary = Convert.FromBase64String(compressedText);
+        //    byte[] destinBinary = uncompressBinary(compressedBinary);
 
-            return result.ToString();
-        }
+        //    result = new string(ASCIIEncoding.ASCII.GetChars(destinBinary));
+
+        //    return result.ToString();
+        //}
 
         private static void registerException(Exception ex)
         {
