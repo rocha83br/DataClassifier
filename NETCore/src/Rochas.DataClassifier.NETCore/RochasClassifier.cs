@@ -392,14 +392,17 @@ namespace Rochas.DataClassifier.NETCore
         {
             var result = new Dictionary<string, int>();
 
-            int maxScore = groupScore.Max(grp => grp.Value);
-
-            foreach (var group in groupScore)
+            if (groupScore.Any())
             {
-                var percent = ((group.Value * 100) / maxScore);
+                int maxScore = groupScore.Max(grp => grp.Value);
 
-                if (percent > 0)
-                    result.Add(group.Key, percent);
+                foreach (var group in groupScore)
+                {
+                    var percent = ((group.Value * 100) / maxScore);
+
+                    if (percent > 0)
+                        result.Add(group.Key, percent);
+                }
             }
 
             return result;
