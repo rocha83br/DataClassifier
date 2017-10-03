@@ -92,13 +92,13 @@ namespace Rochas.DataClassifier
             {
                 var filteredGroup = filterSpecialChars(group.Trim().ToLower());
 
+                if (!groupList.Contains(filteredGroup))
+                    groupList.Add(filteredGroup);
+
                 if (useSensitiveCase)
                 {
                     var upperGroup = filteredGroup.ToUpper();
                     var titledGroup = filteredGroup.ToTitleCase();
-
-                    if (!groupList.Contains(filteredGroup))
-                        groupList.Add(filteredGroup);
 
                     if (!groupList.Contains(group))
                         groupList.Add(group);
@@ -115,16 +115,17 @@ namespace Rochas.DataClassifier
         public bool RemoveGroup(string group)
         {
             var result = false;
+
             group = group.Trim();
             var filteredGroup = filterSpecialChars(group.Trim().ToLower());
+
+            if (!groupList.Contains(filteredGroup))
+                result = groupList.TryTake(out filteredGroup);
 
             if (useSensitiveCase)
             {
                 var upperGroup = filteredGroup.ToUpper();
                 var titledGroup = filteredGroup.ToTitleCase();
-
-                if (!groupList.Contains(filteredGroup))
-                    result = groupList.TryTake(out filteredGroup);
 
                 if (!groupList.Contains(group))
                     result = groupList.TryTake(out group);
