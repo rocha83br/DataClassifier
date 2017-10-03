@@ -320,9 +320,11 @@ namespace Rochas.DataClassifier
 
                     if (phoneticType != PhoneticMatchType.None)
                         treatedWord = filterLanguageChars(treatedWord);
-                    
+
                     hashedWord = treatedWord.GetCustomHashCode();
-                    hashedWordList.Add(hashedWord);
+
+                    if (!hashedWordList.Contains(hashedWord))
+                        hashedWordList.Add(hashedWord);
 
                     if (phoneticType == PhoneticMatchType.UseSondexAlgorithm)
                         hashedWordList.Add(RochasSoundEx.Generate(treatedWord).GetCustomHashCode());
@@ -381,9 +383,14 @@ namespace Rochas.DataClassifier
             searchTree.AsParallel().ForAll(item =>
             {
                 var score = 0;
-                foreach (var hashedWord in item.Value)
-                    if (hashedWordList.Contains(hashedWord))
+                foreach (var hashedWord in hashedWordList)
+                    if (item.Value.Contains(hashedWord))
                         score += 1;
+                    else
+                    {
+                        score = 0;
+                        break;
+                    }
 
                 if (score > 0)
                 {
@@ -422,7 +429,7 @@ namespace Rochas.DataClassifier
             var memDestination = new MemoryStream();
             var memSource = new MemoryStream(rawSource);
             var gzipStream = new GZipStream(memDestination, CompressionMode.Compress);
-            
+
             memSource.CopyTo(gzipStream);
 
             gzipStream.Close();
