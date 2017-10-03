@@ -6,14 +6,16 @@ using System.IO;
 using System.Text;
 using System.IO.Compression;
 using Newtonsoft.Json;
-using Rochas.DataClassifier.NETCore.Extensions;
+using Rochas.DataClassifier.Extensions;
 
-namespace Rochas.DataClassifier.NETCore
+namespace Rochas.DataClassifier
 {
-    public static class RochasClassifier
+    public class RochasClassifier
     {
         #region Declarations
 
+        static bool useSensitiveCase;
+        static bool usePhoneticMatch;
         readonly static ConcurrentBag<string> groupList = new ConcurrentBag<string>();
         static Dictionary<string, SortedSet<uint>> searchTree = new Dictionary<string, SortedSet<uint>>();
         readonly static ConcurrentDictionary<string, ConcurrentBag<uint>> hashedTree = new ConcurrentDictionary<string, ConcurrentBag<uint>>();
@@ -30,6 +32,16 @@ namespace Rochas.DataClassifier.NETCore
         "era","éramos","eram","fui","foi","fomos","foram","fora","fôramos","seja","sejamos","sejam","fosse","fôssemos","fossem","for","formos","forem","serei","será","seremos",
         "serão","seria","seríamos","seriam","tenho","tem","temos","tém","tinha","tínhamos","tinham","tive","teve","tivemos","tiveram","tivera","tivéramos","tenha","tenhamos",
         "tenham","tivesse","tivéssemos","tivessem","tiver","tivermos","tiverem","terei","terá","teremos","terão","teria","teríamos","teriam" };
+
+        #endregion
+
+        #region Constructors
+
+        public RochasClassifier(bool sensitiveCase = false, bool phoneticMatch = false)
+        {
+            useSensitiveCase = sensitiveCase;
+            usePhoneticMatch = phoneticMatch;
+        }
 
         #endregion
 
@@ -71,41 +83,50 @@ namespace Rochas.DataClassifier.NETCore
             if ((group.Length > 2) || !group.ToLower().Equals("null"))
             {
                 var filteredGroup = filterSpecialChars(group.Trim().ToLower());
-                var upperGroup = filteredGroup.ToUpper();
-                var titledGroup = filteredGroup.ToTitleCase();
 
-                if (!groupList.Contains(group))
-                    groupList.Add(group);
+                if (useSensitiveCase)
+                {
+                    var upperGroup = filteredGroup.ToUpper();
+                    var titledGroup = filteredGroup.ToTitleCase();
 
-                if (!groupList.Contains(filteredGroup))
-                    groupList.Add(filteredGroup);
+                    if (!groupList.Contains(filteredGroup))
+                        groupList.Add(filteredGroup);
 
-                if (!groupList.Contains(upperGroup))
-                    groupList.Add(upperGroup);
+                    if (!groupList.Contains(group))
+                        groupList.Add(group);
 
-                if (!groupList.Contains(titledGroup))
-                    groupList.Add(titledGroup);
+                    if (!groupList.Contains(upperGroup))
+                        groupList.Add(upperGroup);
+
+                    if (!groupList.Contains(titledGroup))
+                        groupList.Add(titledGroup);
+                }
             }
         }
 
         public static bool RemoveGroup(string group)
         {
             var result = false;
+            group = group.Trim();
             var filteredGroup = filterSpecialChars(group.Trim().ToLower());
-            var upperGroup = filteredGroup.ToUpper();
-            var titledGroup = filteredGroup.ToTitleCase();
 
-            if (!groupList.Contains(group))
-                result = groupList.TryTake(out group);
+            if (useSensitiveCase)
+            {
+                var upperGroup = filteredGroup.ToUpper();
+                var titledGroup = filteredGroup.ToTitleCase();
 
-            if (!groupList.Contains(filteredGroup))
-                result = groupList.TryTake(out filteredGroup);
+                if (!groupList.Contains(filteredGroup))
+                    result = groupList.TryTake(out filteredGroup);
 
-            if (!groupList.Contains(upperGroup))
-                result = groupList.TryTake(out upperGroup);
+                if (!groupList.Contains(group))
+                    result = groupList.TryTake(out group);
 
-            if (!groupList.Contains(titledGroup))
-                result = groupList.TryTake(out titledGroup);
+                if (!groupList.Contains(upperGroup))
+                    result = groupList.TryTake(out upperGroup);
+
+                if (!groupList.Contains(titledGroup))
+                    result = groupList.TryTake(out titledGroup);
+            }
 
             return result;
         }

@@ -4,11 +4,11 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{9CD0C4FB-FD69-44D4-BC3A-899B0D34BEF7}</ProjectGuid>
+    <ProjectGuid>{AD53E206-D582-4571-B338-5CB8EBFC7C5E}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Rochas.DataClassifier</RootNamespace>
-    <AssemblyName>Rochas.DataClassifier</AssemblyName>
+    <RootNamespace>Rochas.SoundEx</RootNamespace>
+    <AssemblyName>Rochas.SoundEx</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
@@ -30,26 +30,14 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Newtonsoft.Json">
-      <HintPath>..\Libraries\Newtonsoft.Json.dll</HintPath>
-    </Reference>
-    <Reference Include="PTStemmer">
-      <HintPath>..\Libraries\PTStemmer.dll</HintPath>
-    </Reference>
-    <Reference Include="Rochas.SoundEx">
-      <HintPath>..\Libraries\Rochas.SoundEx.dll</HintPath>
-    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="Microsoft.CSharp" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Enumerators\PhoneticMatchType.cs" />
-    <Compile Include="Extensions\StringExtension.cs" />
+    <Compile Include="RochasSoundEx.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="RochasClassifier.cs" />
   </ItemGroup>
-  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
