@@ -55,18 +55,18 @@ namespace Rochas.DataClassifier.NETCore
 
         #region Public Methods
 
-        public void Init(IEnumerable<string> groups)
+        public void Init(IEnumerable<string> groups, bool filterChars = false)
         {
             if ((groups == null) || (groups.Count() == 0))
                 throw new ArgumentNullException("groups");
 
             groups.AsParallel().ForAll(group =>
             {
-                AddGroup(group);
+                AddGroup(group, filterChars);
             });
         }
 
-        public void Init(string filePath)
+        public void Init(string filePath, bool filterChars = false)
         {
             if (string.IsNullOrWhiteSpace(filePath))
                 throw new ArgumentNullException("filePath");
@@ -81,24 +81,27 @@ namespace Rochas.DataClassifier.NETCore
                 groups.Add(group);
             }
 
-            Init(groups);
+            Init(groups, filterChars);
         }
 
-        public void AddGroup(string group)
+        public void AddGroup(string group, bool filterChars = false)
         {
             group = group.Trim();
 
             if (!group.ToLower().Equals("null"))
             {
-                var filteredGroup = filterSpecialChars(group.Trim().ToLower());
+                group = group.Trim().ToLower();
 
-                if (!groupList.Contains(filteredGroup))
-                    groupList.Add(filteredGroup);
+                if (filterChars)
+                    group = filterSpecialChars(group);
+
+                if (!groupList.Contains(group))
+                    groupList.Add(group);
 
                 if (useSensitiveCase)
                 {
-                    var upperGroup = filteredGroup.ToUpper();
-                    var titledGroup = filteredGroup.ToTitleCase();
+                    var upperGroup = group.ToUpper();
+                    var titledGroup = group.ToTitleCase();
 
                     if (!groupList.Contains(group))
                         groupList.Add(group);
