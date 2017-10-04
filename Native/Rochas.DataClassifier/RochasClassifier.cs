@@ -57,33 +57,53 @@ namespace Rochas.DataClassifier
 
         #region Public Methods
 
-        public void Init(IEnumerable<string> groups)
+        public void Init(IEnumerable<string> groups, string groupSeparator = "")
         {
             if ((groups == null) || (groups.Count() == 0))
                 throw new ArgumentNullException("groups");
 
             groups.AsParallel().ForAll(group =>
             {
+                if (!string.IsNullOrWhiteSpace(groupSeparator))
+                    group = group.Substring(0, group.IndexOf(groupSeparator));
+
                 AddGroup(group);
             });
+
+            groups = null;
         }
 
-        public void Init(string filePath)
+        public void Init(string filePath, int page = 0, int size = 0, string groupSeparator = "")
         {
             if (string.IsNullOrWhiteSpace(filePath))
                 throw new ArgumentNullException("filePath");
 
             var fileContent = File.OpenText(filePath);
-            var groups = new List<string>();
+            var tempGroups = new List<string>();
 
+            int itemsCount = 0;
+            var offset = (page * size);
             while (!fileContent.EndOfStream)
             {
-                var group = fileContent.ReadLine();
+                if (((page == 0) && (itemsCount < size))
+                    || ((page > 0) && (itemsCount > offset)))
+                {
 
-                groups.Add(group);
+                    var group = fileContent.ReadLine();
+
+                    if (!string.IsNullOrWhiteSpace(groupSeparator))
+                        group = group.Substring(0, group.IndexOf(groupSeparator));
+
+                    tempGroups.Add(group);
+                }
+
+                if (tempGroups.Count >= size)
+                    break;
+                else
+                    itemsCount++;
             }
 
-            Init(groups);
+            Init(tempGroups.Distinct());
         }
 
         public void AddGroup(string group)
@@ -192,6 +212,9 @@ namespace Rochas.DataClassifier
 
         public void TrainFromStream(StreamReader streamReader, int page = 0, int size = 0)
         {
+            if (groupList.IsEmpty)
+                throw new ApplicationException("No groups defined");
+
             var result = new ConcurrentBag<string>();
 
             int itemsCount = 0;
@@ -203,6 +226,7 @@ namespace Rochas.DataClassifier
                     || ((page > 0) && (itemsCount > offset)))
                 {
                     var lineContent = streamReader.ReadLine();
+
                     result.Add(lineContent);
                 }
 
@@ -217,6 +241,9 @@ namespace Rochas.DataClassifier
 
         public void TrainFromFile(string filePath, int page = 0, int size = 0)
         {
+            if (groupList.IsEmpty)
+                throw new ApplicationException("No groups defined");
+
             var result = new ConcurrentBag<string>();
             var fileContent = File.OpenText(filePath);
 
@@ -288,7 +315,7 @@ namespace Rochas.DataClassifier
 
         #region Helper Methods
 
-        public static string filterLanguageChars(string value)
+        private static string filterLanguageChars(string value)
         {
             int charCount = 0;
             foreach (var character in languageChars)
@@ -345,7 +372,7 @@ namespace Rochas.DataClassifier
         private void mapReduce(ConcurrentBag<string> reduceList)
         {
             var startTime = DateTime.Now;
-            Console.WriteLine("Start...");
+            Console.WriteLine("Start training...");
             Console.WriteLine();
 
             int fullCount = 0;
@@ -382,7 +409,9 @@ namespace Rochas.DataClassifier
             searchTree.AsParallel().ForAll(item =>
             {
                 var score = 0;
-                item.Value.Distinct().AsParallel().ForAll(hashedWord =>
+                var distinctHashedWords = item.Value.Distinct();
+
+                distinctHashedWords.AsParallel().ForAll(hashedWord =>
                 {
                     foreach (var userHashedWord in hashedWordList)
                         if (hashedWord.Equals(userHashedWord))
