@@ -323,8 +323,7 @@ namespace Rochas.DataClassifier
 
                     hashedWord = treatedWord.GetCustomHashCode();
 
-                    if (!hashedWordList.Contains(hashedWord))
-                        hashedWordList.Add(hashedWord);
+                    hashedWordList.Add(hashedWord);
 
                     if (phoneticType == PhoneticMatchType.UseSondexAlgorithm)
                         hashedWordList.Add(RochasSoundEx.Generate(treatedWord).GetCustomHashCode());
@@ -383,14 +382,12 @@ namespace Rochas.DataClassifier
             searchTree.AsParallel().ForAll(item =>
             {
                 var score = 0;
-                foreach (var hashedWord in hashedWordList)
-                    if (item.Value.Contains(hashedWord))
-                        score += 1;
-                    else
-                    {
-                        score = 0;
-                        break;
-                    }
+                item.Value.Distinct().AsParallel().ForAll(hashedWord =>
+                {
+                    foreach (var userHashedWord in hashedWordList)
+                        if (hashedWord.Equals(userHashedWord))
+                            score += 1;
+                });
 
                 if (score > 0)
                 {
