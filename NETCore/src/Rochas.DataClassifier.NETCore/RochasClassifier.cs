@@ -1,21 +1,20 @@
 ﻿using System;
+using System.IO;
 using System.Linq;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
-using System.IO;
-using System.Text;
-using System.IO.Compression;
 using Newtonsoft.Json;
 using Rochas.DataClassifier.NETCore.Extensions;
 using Rochas.DataClassifier.NETCore.Enumerators;
 using Rochas.SoundEx;
 
-namespace Rochas.DataClassifier.NETCore
+namespace Rochas.DataClassifier
 {
     public class RochasClassifier : IDisposable
     {
         #region Declarations
 
+        bool useSpecialCharsFilter;
         bool useSensitiveCase;
         PhoneticMatchType phoneticType;
 
@@ -45,8 +44,9 @@ namespace Rochas.DataClassifier.NETCore
 
         #region Constructors
 
-        public RochasClassifier(bool sensitiveCase = false, PhoneticMatchType phoneticMatchType = PhoneticMatchType.None)
+        public RochasClassifier(bool filterChars = false, bool sensitiveCase = false, PhoneticMatchType phoneticMatchType = PhoneticMatchType.None)
         {
+            useSpecialCharsFilter = filterChars;
             useSensitiveCase = sensitiveCase;
             phoneticType = phoneticMatchType;
         }
@@ -55,18 +55,18 @@ namespace Rochas.DataClassifier.NETCore
 
         #region Public Methods
 
-        public void Init(IEnumerable<string> groups, bool filterChars = false)
+        public void Init(IEnumerable<string> groups)
         {
             if ((groups == null) || (groups.Count() == 0))
                 throw new ArgumentNullException("groups");
 
             groups.AsParallel().ForAll(group =>
             {
-                AddGroup(group, filterChars);
+                AddGroup(group);
             });
         }
 
-        public void Init(string filePath, bool filterChars = false)
+        public void Init(string filePath)
         {
             if (string.IsNullOrWhiteSpace(filePath))
                 throw new ArgumentNullException("filePath");
@@ -81,18 +81,16 @@ namespace Rochas.DataClassifier.NETCore
                 groups.Add(group);
             }
 
-            Init(groups, filterChars);
+            Init(groups);
         }
 
-        public void AddGroup(string group, bool filterChars = false)
+        public void AddGroup(string group)
         {
             group = group.Trim();
 
             if (!group.ToLower().Equals("null"))
             {
-                group = group.Trim().ToLower();
-
-                if (filterChars)
+                if (useSpecialCharsFilter)
                     group = filterSpecialChars(group);
 
                 if (!groupList.Contains(group))
@@ -100,11 +98,12 @@ namespace Rochas.DataClassifier.NETCore
 
                 if (useSensitiveCase)
                 {
+                    var lowerGroup = group.ToLower();
                     var upperGroup = group.ToUpper();
                     var titledGroup = group.ToTitleCase();
 
-                    if (!groupList.Contains(group))
-                        groupList.Add(group);
+                    if (!groupList.Contains(lowerGroup))
+                        groupList.Add(lowerGroup);
 
                     if (!groupList.Contains(upperGroup))
                         groupList.Add(upperGroup);
@@ -118,20 +117,22 @@ namespace Rochas.DataClassifier.NETCore
         public bool RemoveGroup(string group)
         {
             var result = false;
-
             group = group.Trim();
-            var filteredGroup = filterSpecialChars(group.Trim().ToLower());
 
-            if (!groupList.Contains(filteredGroup))
-                result = groupList.TryTake(out filteredGroup);
+            if (useSpecialCharsFilter)
+                group = filterSpecialChars(group);
+
+            if (!groupList.Contains(group))
+                result = groupList.TryTake(out group);
 
             if (useSensitiveCase)
             {
-                var upperGroup = filteredGroup.ToUpper();
-                var titledGroup = filteredGroup.ToTitleCase();
+                var lowerGroup = group.ToLower();
+                var upperGroup = group.ToUpper();
+                var titledGroup = group.ToTitleCase();
 
-                if (!groupList.Contains(group))
-                    result = groupList.TryTake(out group);
+                if (!groupList.Contains(lowerGroup))
+                    result = groupList.TryTake(out lowerGroup);
 
                 if (!groupList.Contains(upperGroup))
                     result = groupList.TryTake(out upperGroup);
@@ -152,7 +153,10 @@ namespace Rochas.DataClassifier.NETCore
             else
                 hashedWordList = hashedTree[group];
 
-            foreach (var word in filterSpecialChars(text).Trim().Split(' '))
+            if (useSpecialCharsFilter)
+                text = filterLanguageChars(text);
+
+            foreach (var word in text.Trim().Split(' '))
                 stemmHash(word, hashedWordList);
 
             if (!hashedTree.ContainsKey(group))
@@ -220,7 +224,7 @@ namespace Rochas.DataClassifier.NETCore
         public string SaveTrainingData()
         {
             var content = JsonConvert.SerializeObject(hashedTree);
-
+            
             //return compressText(content);
             return content;
         }
@@ -254,7 +258,11 @@ namespace Rochas.DataClassifier.NETCore
                 throw new ArgumentNullException("text");
 
             var hashedWordList = new ConcurrentBag<uint>();
-            filterSpecialChars(text).Trim().ToLower().Split(' ').AsParallel().ForAll(word =>
+
+            if (useSpecialCharsFilter)
+                text = filterSpecialChars(text);
+
+            text.Trim().ToLower().Split(' ').AsParallel().ForAll(word =>
             {
                 stemmHash(word, hashedWordList);
             });
@@ -314,8 +322,9 @@ namespace Rochas.DataClassifier.NETCore
 
                     if (phoneticType != PhoneticMatchType.None)
                         treatedWord = filterLanguageChars(treatedWord);
-                    
+
                     hashedWord = treatedWord.GetCustomHashCode();
+
                     hashedWordList.Add(hashedWord);
 
                     if (phoneticType == PhoneticMatchType.UseSondexAlgorithm)
@@ -359,7 +368,7 @@ namespace Rochas.DataClassifier.NETCore
                     }
                 }
 
-                Train(group.ToLower(), map);
+                Train(group, map);
             });
 
             var lastElapsedMinutes = Math.Round((DateTime.Now - startTime).TotalMinutes, 0);
@@ -375,9 +384,12 @@ namespace Rochas.DataClassifier.NETCore
             searchTree.AsParallel().ForAll(item =>
             {
                 var score = 0;
-                foreach (var hashedWord in item.Value)
-                    if (hashedWordList.Contains(hashedWord))
-                        score += 1;
+                item.Value.Distinct().AsParallel().ForAll(hashedWord =>
+                {
+                    foreach (var userHashedWord in hashedWordList)
+                        if (hashedWord.Equals(userHashedWord))
+                            score += 1;
+                });
 
                 if (score > 0)
                 {
@@ -416,7 +428,7 @@ namespace Rochas.DataClassifier.NETCore
         //    var memDestination = new MemoryStream();
         //    var memSource = new MemoryStream(rawSource);
         //    var gzipStream = new GZipStream(memDestination, CompressionMode.Compress);
-            
+
         //    memSource.CopyTo(gzipStream);
 
         //    gzipStream.Close();
