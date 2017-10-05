@@ -213,7 +213,7 @@ namespace Rochas.DataClassifier
         public void TrainFromStream(StreamReader streamReader, int page = 0, int size = 0)
         {
             if (groupList.IsEmpty)
-                throw new ApplicationException("No groups defined");
+                throw new Exception("No groups defined");
 
             var result = new ConcurrentBag<string>();
 
@@ -242,7 +242,7 @@ namespace Rochas.DataClassifier
         public void TrainFromFile(string filePath, int page = 0, int size = 0)
         {
             if (groupList.IsEmpty)
-                throw new ApplicationException("No groups defined");
+                throw new Exception("No groups defined");
 
             var result = new ConcurrentBag<string>();
             var fileContent = File.OpenText(filePath);
