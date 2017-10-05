@@ -417,6 +417,9 @@ namespace Rochas.DataClassifier
                             score += 1;
                 });
 
+                if (score == hashedWordList.Count)
+                    score += 1;
+
                 if (score > 0)
                 {
                     if (!result.ContainsKey(item.Key))
