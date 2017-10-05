@@ -85,12 +85,11 @@ namespace Rochas.DataClassifier
             var offset = (page * size);
             while (!fileContent.EndOfStream)
             {
+                var group = fileContent.ReadLine();
+
                 if (((page == 0) && (itemsCount < size))
                     || ((page > 0) && (itemsCount > offset)))
                 {
-
-                    var group = fileContent.ReadLine();
-
                     if (!string.IsNullOrWhiteSpace(groupSeparator))
                         group = group.Substring(0, group.IndexOf(groupSeparator));
 
@@ -222,11 +221,11 @@ namespace Rochas.DataClassifier
             {
                 var offset = (page * size);
 
+                var lineContent = streamReader.ReadLine();
+
                 if (((page == 0) && (itemsCount < size))
                     || ((page > 0) && (itemsCount > offset)))
                 {
-                    var lineContent = streamReader.ReadLine();
-
                     result.Add(lineContent);
                 }
 
