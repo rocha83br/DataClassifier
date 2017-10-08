@@ -1,12 +1,13 @@
 ﻿using System;
+using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
-using System.IO;
 using Newtonsoft.Json;
+using Rochas.SoundEx;
 using Rochas.DataClassifier.Extensions;
 using Rochas.DataClassifier.Enumerators;
-using Rochas.SoundEx;
 using Rochas.DataClassifier.Helpers;
 using Rochas.DataClassifier.ValueObjects;
 
@@ -59,16 +60,13 @@ namespace Rochas.DataClassifier
 
         #region Public Methods
 
-        public void Init(IEnumerable<string> groups, string groupSeparator = "")
+        public void Init(IEnumerable<string> groups)
         {
             if ((groups == null) || (groups.Count() == 0))
                 throw new ArgumentNullException("groups");
 
             groups.AsParallel().ForAll(name =>
             {
-                if (!string.IsNullOrWhiteSpace(groupSeparator))
-                    name = name.Substring(0, name.IndexOf(groupSeparator));
-
                 AddGroup(name);
             });
 
@@ -175,10 +173,8 @@ namespace Rochas.DataClassifier
                 hashedWordList = new ConcurrentBag<uint>();
             else
                 hashedWordList = hashedTree[group];
-
             if (useSpecialCharsFilter)
                 text = filterSpecialChars(text);
-
             foreach (var word in text.Trim().Split(' '))
                 stemmHash(word, hashedWordList);
 
@@ -281,7 +277,7 @@ namespace Rochas.DataClassifier
                 persistKnowledgeServer(serverUri);
         }
 
-        public IDictionary<string, int> Classify(string text)
+        public IDictionary<string, uint> Classify(string text, string serverUri = "")
         {
             if (string.IsNullOrWhiteSpace(text))
                 throw new ArgumentNullException("text");
@@ -296,7 +292,11 @@ namespace Rochas.DataClassifier
                 stemmHash(word, hashedWordList);
             });
 
-            var result = setGroupScore(hashedWordList);
+            IDictionary<string, uint> result = null;
+            if (string.IsNullOrWhiteSpace(serverUri))
+                result = setGroupScore(hashedWordList);
+            else
+                result = setServerGroupScore(hashedWordList, serverUri);
 
             var orderedResult = result.OrderByDescending(res => res.Value);
 
@@ -332,8 +332,6 @@ namespace Rochas.DataClassifier
         {
             foreach (var character in specialChars)
                 value = value.Replace(character, " ");
-
-            value = filterLanguageChars(value);
 
             return value;
         }
@@ -420,6 +418,7 @@ namespace Rochas.DataClassifier
                 throw new Exception("Training data not loaded");
 
             var startTime = DateTime.Now;
+            Console.WriteLine();
             Console.WriteLine("Start upload to server...");
             Console.WriteLine();
 
@@ -450,13 +449,13 @@ namespace Rochas.DataClassifier
             return true;
         }
 
-        private static ConcurrentDictionary<string, int> setGroupScore(ConcurrentBag<uint> hashedWordList)
+        private static IDictionary<string, uint> setGroupScore(ConcurrentBag<uint> hashedWordList)
         {
-            var result = new ConcurrentDictionary<string, int>();
+            var result = new ConcurrentDictionary<string, uint>();
 
             searchTree.AsParallel().ForAll(item =>
             {
-                var score = 0;
+                uint score = 0;
                 var distinctHashedWords = item.Value.Distinct();
 
                 distinctHashedWords.AsParallel().ForAll(hashedWord =>
@@ -481,17 +480,56 @@ namespace Rochas.DataClassifier
             return result;
         }
 
-        private static Dictionary<string, int> setScorePercent(IOrderedEnumerable<KeyValuePair<string, int>> groupScore)
+        private static IDictionary<string, uint> setServerGroupScore(ConcurrentBag<uint> hashedWordList, string serverUri)
         {
-            var result = new Dictionary<string, int>();
+            var result = new ConcurrentDictionary<string, uint>();
+            var serverGroups = RESTClient<IEnumerable<KnowledgeGroup>>.GetSync(serverUri, string.Empty);
+
+            serverGroups.AsParallel().ForAll(group =>
+            {
+                uint score = 0;
+
+                var callParam = string.Format("groupName={0}", group.Name);
+                var groupHashes = RESTClient<KnowledgeGroup>.GetSync(serverUri, callParam);
+
+                if (groupHashes != null)
+                {
+                    var distinctHashedWords = group.Hashes.Distinct();
+
+                    distinctHashedWords.AsParallel().ForAll(hashedWord =>
+                    {
+                        foreach (var userHashedWord in hashedWordList)
+                            if (hashedWord.Value.Equals(userHashedWord))
+                                score += 1;
+                    });
+
+                    if (score == hashedWordList.Count)
+                        score += 1;
+
+                    if (score > 0)
+                    {
+                        if (!result.ContainsKey(group.Name))
+                            result.TryAdd(group.Name, score);
+                        else
+                            result[group.Name] += score;
+                    }
+                }
+            });
+
+            return result;
+        }
+
+        private static Dictionary<string, uint> setScorePercent(IOrderedEnumerable<KeyValuePair<string, uint>> groupScore)
+        {
+            var result = new Dictionary<string, uint>();
 
             if (groupScore.Any())
             {
-                int maxScore = groupScore.Max(grp => grp.Value);
+                uint maxScore = groupScore.Max(grp => grp.Value);
 
                 foreach (var group in groupScore)
                 {
-                    var percent = ((group.Value * 100) / maxScore);
+                    var percent = ((group.Value * (uint)100) / maxScore);
 
                     if (percent > 0)
                         result.Add(group.Key, percent);
