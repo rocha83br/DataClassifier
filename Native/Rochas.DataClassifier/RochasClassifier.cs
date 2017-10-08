@@ -251,42 +251,6 @@ namespace Rochas.DataClassifier
             TrainFromStream(fileContent, page, size);
         }
 
-        public bool persistKnowledgeServer(string serverUri)
-        {
-            if (searchTree.Count == 0)
-                throw new Exception("Training data not loaded");
-
-            var startTime = DateTime.Now;
-            Console.WriteLine("Start upload to server...");
-            Console.WriteLine();
-
-            int fullCount = 0;
-            foreach (var treeItem in searchTree)
-            {
-                var persistItem = new KnowledgeGroup(treeItem.Key);
-                persistItem.Hashes = treeItem.Value.Select(itm => new KnowledgeHash(int.Parse(itm.ToString())));
-
-                try
-                {
-                    var processPercent = ((fullCount++ * 100) / searchTree.Keys.Count()) + 1;
-                    Console.WriteLine(string.Format("- ({1}% Elapsed) Uploading data from {0} group...", treeItem.Key, processPercent));
-
-                    RESTClient<KnowledgeGroup>.PostSync(serverUri, persistItem);
-                }
-                catch(Exception ex)
-                {
-                    throw ex;
-                }
-            }
-
-            var lastElapsedMinutes = Math.Round((DateTime.Now - startTime).TotalMinutes, 0);
-
-            Console.WriteLine();
-            Console.WriteLine(string.Format("Finished in {0} minutes.", lastElapsedMinutes));
-
-            return true;
-        }
-
         public string SaveTrainingData()
         {
             var content = JsonConvert.SerializeObject(hashedTree);
@@ -448,6 +412,42 @@ namespace Rochas.DataClassifier
 
             Console.WriteLine();
             Console.WriteLine(string.Format("Finished in {0} minutes.", lastElapsedMinutes));
+        }
+
+        private bool persistKnowledgeServer(string serverUri)
+        {
+            if (searchTree.Count == 0)
+                throw new Exception("Training data not loaded");
+
+            var startTime = DateTime.Now;
+            Console.WriteLine("Start upload to server...");
+            Console.WriteLine();
+
+            int fullCount = 0;
+            foreach (var treeItem in searchTree)
+            {
+                var persistItem = new KnowledgeGroup(treeItem.Key);
+                persistItem.Hashes = treeItem.Value.Select(itm => new KnowledgeHash(int.Parse(itm.ToString())));
+
+                try
+                {
+                    var processPercent = ((fullCount++ * 100) / searchTree.Keys.Count()) + 1;
+                    Console.WriteLine(string.Format("- ({1}% Elapsed) Uploading data from {0} group...", treeItem.Key, processPercent));
+
+                    RESTClient<KnowledgeGroup>.PostSync(serverUri, persistItem);
+                }
+                catch (Exception ex)
+                {
+                    throw ex;
+                }
+            }
+
+            var lastElapsedMinutes = Math.Round((DateTime.Now - startTime).TotalMinutes, 0);
+
+            Console.WriteLine();
+            Console.WriteLine(string.Format("Finished in {0} minutes.", lastElapsedMinutes));
+
+            return true;
         }
 
         private static ConcurrentDictionary<string, int> setGroupScore(ConcurrentBag<uint> hashedWordList)
