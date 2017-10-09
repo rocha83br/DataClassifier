@@ -308,7 +308,7 @@ namespace Rochas.DataClassifier
 
             var orderedResult = result.OrderByDescending(res => res.Value);
 
-            var scoreResult = setScorePercent(orderedResult, (uint)hashedWordList.Count);
+            var scoreResult = setScorePercent(orderedResult);
 
             return scoreResult;
         }
@@ -477,6 +477,9 @@ namespace Rochas.DataClassifier
                             score += 1;
                 });
 
+                if (score == hashedWordList.Count)
+                    score += 1;
+
                 if (score > 0)
                 {
                     if (!result.ContainsKey(item.Key))
@@ -513,6 +516,9 @@ namespace Rochas.DataClassifier
                                 score += 1;
                     });
 
+                    if (score == hashedWordList.Count)
+                        score += 1;
+
                     if (score > 0)
                     {
                         if (!result.ContainsKey(group.Name))
@@ -526,17 +532,18 @@ namespace Rochas.DataClassifier
             return result;
         }
 
-        private static Dictionary<string, uint> setScorePercent(IOrderedEnumerable<KeyValuePair<string, uint>> groupScore, uint usrHashWordCount)
+        private static Dictionary<string, uint> setScorePercent(IOrderedEnumerable<KeyValuePair<string, uint>> groupScore)
         {
             var result = new Dictionary<string, uint>();
 
             if (groupScore.Any())
             {
                 uint maxPercent = 100;
+                uint maxScore = groupScore.Max(grp => grp.Value);
 
                 foreach (var group in groupScore)
                 {
-                    var percent = ((group.Value * maxPercent) / usrHashWordCount);
+                    var percent = ((group.Value * maxPercent) / maxScore);
 
                     if (percent > 0)
                         result.Add(group.Key, percent);
