@@ -9,7 +9,8 @@ using Rochas.SoundEx;
 using Rochas.DataClassifier.Extensions;
 using Rochas.DataClassifier.Enumerators;
 using Rochas.DataClassifier.Helpers;
-using Rochas.DataClassifier.ValueObjects;
+using Rochas.DataClassifier.Models;
+using Rochas.DataClassifier.Repositories;
 
 namespace Rochas.DataClassifier
 {
@@ -173,8 +174,10 @@ namespace Rochas.DataClassifier
                 hashedWordList = new ConcurrentBag<uint>();
             else
                 hashedWordList = hashedTree[group];
+
             if (useSpecialCharsFilter)
                 text = filterSpecialChars(text);
+
             foreach (var word in text.Trim().Split(' '))
                 stemmHash(word, hashedWordList);
 
@@ -263,7 +266,7 @@ namespace Rochas.DataClassifier
             File.WriteAllText(filePath, compressedContent);
         }
 
-        public void FromTrainingData(string filePath, string serverUri = "")
+        public void FromTrainingData(string filePath, string connectionString)
         {
             if (string.IsNullOrWhiteSpace(filePath))
                 throw new ArgumentNullException("filePath");
@@ -273,11 +276,16 @@ namespace Rochas.DataClassifier
 
             searchTree = JsonConvert.DeserializeObject<Dictionary<string, SortedSet<uint>>>(content);
 
-            if (!string.IsNullOrWhiteSpace(serverUri))
-                persistKnowledgeServer(serverUri);
+            if (!string.IsNullOrWhiteSpace(connectionString))
+            {
+                persistKnowledgeDB(connectionString);
+
+                searchTree.Clear();
+                searchTree = null;
+            }
         }
 
-        public IDictionary<string, uint> Classify(string text, string serverUri = "")
+        public IDictionary<string, uint> Classify(string text, string connectionString = "")
         {
             if (string.IsNullOrWhiteSpace(text))
                 throw new ArgumentNullException("text");
@@ -293,10 +301,10 @@ namespace Rochas.DataClassifier
             });
 
             IDictionary<string, uint> result = null;
-            if (string.IsNullOrWhiteSpace(serverUri))
+            if (string.IsNullOrWhiteSpace(connectionString))
                 result = setGroupScore(hashedWordList);
             else
-                result = setServerGroupScore(hashedWordList, serverUri);
+                result = setDBGroupScore(hashedWordList, connectionString);
 
             var orderedResult = result.OrderByDescending(res => res.Value);
 
@@ -412,28 +420,32 @@ namespace Rochas.DataClassifier
             Console.WriteLine(string.Format("Finished in {0} minutes.", lastElapsedMinutes));
         }
 
-        private bool persistKnowledgeServer(string serverUri)
+        private bool persistKnowledgeDB(string connectionString)
         {
             if (searchTree.Count == 0)
                 throw new Exception("Training data not loaded");
 
+            if (string.IsNullOrWhiteSpace(connectionString))
+                throw new Exception("ConnectionString not informed");
+
             var startTime = DateTime.Now;
             Console.WriteLine();
-            Console.WriteLine("Start upload to server...");
+            Console.WriteLine("Start MemoryDB persistence...");
             Console.WriteLine();
 
             int fullCount = 0;
-            foreach (var treeItem in searchTree)
+            KnowledgeRepository.Init(connectionString);
+            foreach(var treeItem in searchTree)
             {
                 var persistItem = new KnowledgeGroup(treeItem.Key);
-                persistItem.Hashes = treeItem.Value.Select(itm => new KnowledgeHash(int.Parse(itm.ToString())));
+                persistItem.Hashes = treeItem.Value.AsParallel().Select(itm => new KnowledgeHash(int.Parse(itm.ToString())));
 
                 try
                 {
                     var processPercent = ((fullCount++ * 100) / searchTree.Keys.Count()) + 1;
-                    Console.WriteLine(string.Format("- ({1}% Elapsed) Uploading data from {0} group...", treeItem.Key, processPercent));
+                    Console.WriteLine(string.Format("- ({1}% Elapsed) Persisting data from {0} group...", treeItem.Key, processPercent));
 
-                    RESTClient<KnowledgeGroup>.PostSync(serverUri, persistItem);
+                    KnowledgeRepository.Save(persistItem);
                 }
                 catch (Exception ex)
                 {
@@ -480,26 +492,27 @@ namespace Rochas.DataClassifier
             return result;
         }
 
-        private static IDictionary<string, uint> setServerGroupScore(ConcurrentBag<uint> hashedWordList, string serverUri)
+        private static IDictionary<string, uint> setDBGroupScore(ConcurrentBag<uint> hashedWordList, string connectionString)
         {
             var result = new ConcurrentDictionary<string, uint>();
-            var serverGroups = RESTClient<IEnumerable<KnowledgeGroup>>.GetSync(serverUri, string.Empty);
+
+            KnowledgeRepository.Init(connectionString);
+            var serverGroups = KnowledgeRepository.List();
 
             serverGroups.AsParallel().ForAll(group =>
             {
                 uint score = 0;
 
-                var callParam = string.Format("groupName={0}", group.Name);
-                var groupHashes = RESTClient<KnowledgeGroup>.GetSync(serverUri, callParam);
+                var groupHashes = KnowledgeRepository.Get(group.Id);
 
-                if (groupHashes != null)
+                if ((groupHashes != null) && (groupHashes.Hashes != null))
                 {
-                    var distinctHashedWords = group.Hashes.Distinct();
+                    var distinctHashedWords = groupHashes.Hashes.Distinct();
 
                     distinctHashedWords.AsParallel().ForAll(hashedWord =>
                     {
                         foreach (var userHashedWord in hashedWordList)
-                            if (hashedWord.Value.Equals(userHashedWord))
+                            if (((uint)hashedWord.Value).Equals(userHashedWord))
                                 score += 1;
                     });
 
