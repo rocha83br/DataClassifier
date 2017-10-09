@@ -266,7 +266,7 @@ namespace Rochas.DataClassifier
             File.WriteAllText(filePath, compressedContent);
         }
 
-        public void FromTrainingData(string filePath, string connectionString)
+        public void FromTrainingData(string filePath, string connectionString = "")
         {
             if (string.IsNullOrWhiteSpace(filePath))
                 throw new ArgumentNullException("filePath");
@@ -308,7 +308,7 @@ namespace Rochas.DataClassifier
 
             var orderedResult = result.OrderByDescending(res => res.Value);
 
-            var scoreResult = setScorePercent(orderedResult);
+            var scoreResult = setScorePercent(orderedResult, (uint)hashedWordList.Count);
 
             return scoreResult;
         }
@@ -532,17 +532,17 @@ namespace Rochas.DataClassifier
             return result;
         }
 
-        private static Dictionary<string, uint> setScorePercent(IOrderedEnumerable<KeyValuePair<string, uint>> groupScore)
+        private static Dictionary<string, uint> setScorePercent(IOrderedEnumerable<KeyValuePair<string, uint>> groupScore, uint usrHashWordCount)
         {
             var result = new Dictionary<string, uint>();
 
             if (groupScore.Any())
             {
-                uint maxScore = groupScore.Max(grp => grp.Value);
+                uint maxPercent = 100;
 
                 foreach (var group in groupScore)
                 {
-                    var percent = ((group.Value * (uint)100) / maxScore);
+                    var percent = ((group.Value * maxPercent) / usrHashWordCount);
 
                     if (percent > 0)
                         result.Add(group.Key, percent);
