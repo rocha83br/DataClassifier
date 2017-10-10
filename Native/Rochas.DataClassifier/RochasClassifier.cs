@@ -30,7 +30,7 @@ namespace Rochas.DataClassifier
         readonly static string languageChars = "àáãçéíóõúÀÁÃÇÉÍÓÕÚ";
         readonly static string cleanLanguageChars = "aaaceioouAAACEIOOU";
 
-        readonly static string[] specialChars = { "@", "%", "#", "/", "\\", ";", ":", ".", ",", "*", "(", ")", "[", "]", "<", "+", "-", "\"", "'", "´", "`", "?", "!" };
+        readonly static string[] specialChars = { "@", "%", "#", "/", "\\", ";", ":", ".", ",", "*", "(", ")", "[", "]", "<", ">", "+", "-", "\"", "'", "´", "`", "?", "!" };
 
         readonly static string[] skipWords = new[] {
         "de","a","o","que","e","do","da","em","um","para","é","com","não","uma","os","no","se","na","por","mais","as","dos","como","mas","foi","ao","ele","das",
@@ -339,7 +339,7 @@ namespace Rochas.DataClassifier
         private static string filterSpecialChars(string value)
         {
             foreach (var character in specialChars)
-                value = value.Replace(character, " ");
+                value = value.Replace(character, string.Empty);
 
             return value;
         }
