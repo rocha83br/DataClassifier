@@ -236,7 +236,7 @@ namespace Rochas.DataClassifier
                     itemsCount++;
             }
 
-            Train(result);
+            Train(result.OrderByDescending(res => res.Length));
         }
 
         public void TrainFromFile(string filePath, int page = 0, int size = 0)
