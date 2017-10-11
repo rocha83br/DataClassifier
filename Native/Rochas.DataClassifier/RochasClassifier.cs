@@ -144,7 +144,7 @@ namespace Rochas.DataClassifier
             if (useSpecialCharsFilter)
                 group = filterSpecialChars(group);
 
-            if (!groupList.Contains(group))
+            if (groupList.Contains(group))
                 result = groupList.TryTake(out group);
 
             if (useSensitiveCase)
@@ -153,13 +153,13 @@ namespace Rochas.DataClassifier
                 var upperGroup = group.ToUpper();
                 var titledGroup = group.ToTitleCase();
 
-                if (!groupList.Contains(lowerGroup))
+                if (groupList.Contains(lowerGroup))
                     result = groupList.TryTake(out lowerGroup);
 
-                if (!groupList.Contains(upperGroup))
+                if (groupList.Contains(upperGroup))
                     result = groupList.TryTake(out upperGroup);
 
-                if (!groupList.Contains(titledGroup))
+                if (groupList.Contains(titledGroup))
                     result = groupList.TryTake(out titledGroup);
             }
 
