@@ -32,7 +32,7 @@ namespace Rochas.DataClassifier.Models
         public string Name { get; set; }
 
         [Required]
-        public virtual IEnumerable<KnowledgeHash> Hashes { get; set; }
+        public virtual ICollection<KnowledgeHash> Hashes { get; set; }
 
         #endregion
     }

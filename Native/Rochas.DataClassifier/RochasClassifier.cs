@@ -22,6 +22,7 @@ namespace Rochas.DataClassifier
         bool useSpecialCharsFilter;
         bool useSensitiveCase;
         PhoneticMatchType phoneticType;
+        string groupContentSeparator;
 
         readonly static ConcurrentBag<string> groupList = new ConcurrentBag<string>();
         static Dictionary<string, SortedSet<uint>> searchTree = new Dictionary<string, SortedSet<uint>>();
@@ -49,12 +50,13 @@ namespace Rochas.DataClassifier
 
         #region Constructors
 
-        public RochasClassifier(bool allowRepeat = true, bool filterChars = false, bool sensitiveCase = false, PhoneticMatchType phoneticMatchType = PhoneticMatchType.None)
+        public RochasClassifier(bool allowRepeat = true, bool filterChars = false, bool sensitiveCase = false, PhoneticMatchType phoneticMatchType = PhoneticMatchType.None, string groupSeparator = "")
         {
             allowHashRepetition = allowRepeat;
             useSpecialCharsFilter = filterChars;
             useSensitiveCase = sensitiveCase;
             phoneticType = phoneticMatchType;
+            groupContentSeparator = groupSeparator;
         }
 
         #endregion
@@ -74,7 +76,7 @@ namespace Rochas.DataClassifier
             groups = null;
         }
 
-        public void Init(string filePath, int page = 0, int size = 0, string groupSeparator = "")
+        public void Init(string filePath, int page = 0, int size = 0)
         {
             if (string.IsNullOrWhiteSpace(filePath))
                 throw new ArgumentNullException("filePath");
@@ -91,8 +93,8 @@ namespace Rochas.DataClassifier
                 if (((page == 0) && (itemsCount < size))
                     || ((page > 0) && (itemsCount > offset)))
                 {
-                    if (!string.IsNullOrWhiteSpace(groupSeparator))
-                        group = group.Substring(0, group.IndexOf(groupSeparator));
+                    if (!string.IsNullOrWhiteSpace(groupContentSeparator))
+                        group = group.Substring(0, group.IndexOf(groupContentSeparator));
 
                     tempGroups.Add(group);
                 }
@@ -236,7 +238,9 @@ namespace Rochas.DataClassifier
                     itemsCount++;
             }
 
-            Train(result.OrderByDescending(res => res.Length));
+            var groupOrderedResult = result.OrderByDescending(res => res.Substring(0, res.IndexOf(groupContentSeparator)).Length);
+
+            Train(groupOrderedResult);
         }
 
         public void TrainFromFile(string filePath, int page = 0, int size = 0)
@@ -438,7 +442,7 @@ namespace Rochas.DataClassifier
             foreach(var treeItem in searchTree)
             {
                 var persistItem = new KnowledgeGroup(treeItem.Key);
-                persistItem.Hashes = treeItem.Value.AsParallel().Select(itm => new KnowledgeHash(int.Parse(itm.ToString())));
+                persistItem.Hashes = treeItem.Value.AsParallel().Select(itm => new KnowledgeHash(int.Parse(itm.ToString()))).ToList();
 
                 try
                 {
