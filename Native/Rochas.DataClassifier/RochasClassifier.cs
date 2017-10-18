@@ -238,9 +238,14 @@ namespace Rochas.DataClassifier
                     itemsCount++;
             }
 
-            var groupOrderedResult = result.OrderByDescending(res => res.Substring(0, res.IndexOf(groupContentSeparator)).Length);
+            if (!string.IsNullOrWhiteSpace(groupContentSeparator))
+            {
+                var groupOrderedResult = result.OrderByDescending(res => res.Substring(0, res.IndexOf(groupContentSeparator)).Length);
 
-            Train(groupOrderedResult);
+                Train(groupOrderedResult);
+            }
+            else
+                Train(result);
         }
 
         public void TrainFromFile(string filePath, int page = 0, int size = 0)
