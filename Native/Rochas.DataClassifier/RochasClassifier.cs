@@ -397,12 +397,12 @@ namespace Rochas.DataClassifier
 
             int fullCount = 0;
 
-            IOrderedEnumerable<string> groupOrderedReduceList = null;
+            IEnumerable<string> groupOrderedReduceList = null;
 
             if (!string.IsNullOrWhiteSpace(groupContentSeparator))
-                groupOrderedReduceList = reduceList.OrderByDescending(res => res.Substring(0, res.IndexOf(groupContentSeparator)).Length);
+                groupOrderedReduceList = reduceList.OrderByDescending(res => res.Substring(0, res.IndexOf(groupContentSeparator)).Length).ToList();
             else
-                groupOrderedReduceList = reduceList.OrderByDescending(res => res.Length);
+                groupOrderedReduceList = reduceList.OrderByDescending(res => res.Length).ToList();
 
             groupList.OrderByDescending(grp => grp.Length).AsParallel().AsOrdered().ForAll(group =>
             {
