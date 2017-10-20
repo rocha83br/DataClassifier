@@ -238,14 +238,7 @@ namespace Rochas.DataClassifier
                     itemsCount++;
             }
 
-            if (!string.IsNullOrWhiteSpace(groupContentSeparator))
-            {
-                var groupOrderedResult = result.OrderByDescending(res => res.Substring(0, res.IndexOf(groupContentSeparator)).Length);
-
-                Train(groupOrderedResult);
-            }
-            else
-                Train(result);
+            Train(result);
         }
 
         public void TrainFromFile(string filePath, int page = 0, int size = 0)
@@ -403,6 +396,14 @@ namespace Rochas.DataClassifier
             Console.WriteLine();
 
             int fullCount = 0;
+
+            IOrderedEnumerable<string> groupOrderedReduceList = null;
+
+            if (!string.IsNullOrWhiteSpace(groupContentSeparator))
+                groupOrderedReduceList = reduceList.OrderByDescending(res => res.Substring(0, res.IndexOf(groupContentSeparator)).Length);
+            else
+                groupOrderedReduceList = reduceList.OrderByDescending(res => res.Length);
+
             groupList.OrderByDescending(grp => grp.Length).AsParallel().AsOrdered().ForAll(group =>
             {
                 var processPercent = ((fullCount++ * 100) / groupList.Count()) + 1;
@@ -410,7 +411,8 @@ namespace Rochas.DataClassifier
                 Console.WriteLine(string.Format("- ({1}% Elapsed) Training data from {0} group...", group, processPercent));
 
                 var map = new ConcurrentBag<string>();
-                foreach (var text in reduceList)
+
+                foreach (var text in groupOrderedReduceList)
                 {
                     var remText = text;
                     if (text.Contains(group))
@@ -444,7 +446,7 @@ namespace Rochas.DataClassifier
 
             int fullCount = 0;
             KnowledgeRepository.Init(connectionString);
-            foreach(var treeItem in searchTree)
+            foreach (var treeItem in searchTree)
             {
                 var persistItem = new KnowledgeGroup(treeItem.Key);
                 persistItem.Hashes = treeItem.Value.AsParallel().Select(itm => new KnowledgeHash(int.Parse(itm.ToString()))).ToList();
