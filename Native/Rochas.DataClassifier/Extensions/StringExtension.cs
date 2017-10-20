@@ -12,12 +12,10 @@ namespace Rochas.DataClassifier.Extensions
             {
                 var preResult = string.Empty;
 
-                var firstChar = Encoding.ASCII.GetBytes(value.First().ToString());
-                var lastChar = Encoding.ASCII.GetBytes(value.Last().ToString());
                 var charArray = Encoding.ASCII.GetBytes(value);
-                var byteSum = charArray.Sum(chr => chr) + ((value.Length + 1) / 2);
+                var byteSum = charArray.Sum(chr => Math.Round(Math.Log(chr), 6));
 
-                preResult = string.Concat(firstChar.First(), byteSum, lastChar.First());
+                preResult = byteSum.ToString().Replace(".", string.Empty).Replace(",", string.Empty);
 
                 return uint.Parse(preResult);
             }
