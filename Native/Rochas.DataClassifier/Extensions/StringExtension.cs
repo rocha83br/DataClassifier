@@ -6,7 +6,7 @@ namespace Rochas.DataClassifier.Extensions
 {
     public static class StringExtension
     {
-        public static uint GetCustomHashCode(this string value)
+        public static ulong GetCustomHashCode(this string value)
         {
             if (value.Length > 0)
             {
@@ -17,7 +17,7 @@ namespace Rochas.DataClassifier.Extensions
 
                 preResult = byteSum.ToString().Replace(".", string.Empty).Replace(",", string.Empty);
 
-                return uint.Parse(preResult);
+                return ulong.Parse(preResult);
             }
             else
                 return 0;
