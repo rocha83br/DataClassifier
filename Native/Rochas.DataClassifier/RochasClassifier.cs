@@ -289,7 +289,7 @@ namespace Rochas.DataClassifier
             }
         }
 
-        public IDictionary<string, ulong> Classify(string text, string connectionString = "")
+        public IDictionary<string, ulong> Classify(string text, int limit = 0, string connectionString = "")
         {
             if (string.IsNullOrWhiteSpace(text))
                 throw new ArgumentNullException("text");
@@ -312,7 +312,7 @@ namespace Rochas.DataClassifier
 
             var orderedResult = result.OrderByDescending(res => res.Value);
 
-            var scoreResult = setScorePercent(orderedResult);
+            var scoreResult = setScorePercent(orderedResult, limit);
 
             return scoreResult;
         }
@@ -548,7 +548,7 @@ namespace Rochas.DataClassifier
             return result;
         }
 
-        private static Dictionary<string, ulong> setScorePercent(IOrderedEnumerable<KeyValuePair<string, ulong>> groupScore)
+        private static Dictionary<string, ulong> setScorePercent(IOrderedEnumerable<KeyValuePair<string, ulong>> groupScore, int limit = 0)
         {
             var result = new Dictionary<string, ulong>();
 
@@ -561,7 +561,7 @@ namespace Rochas.DataClassifier
                 {
                     var percent = ((group.Value * maxPercent) / maxScore);
 
-                    if (percent > 0)
+                    if ((percent > 0) && ((limit == 0) || (result.Count < limit)))
                         result.Add(group.Key, percent);
                 }
             }
