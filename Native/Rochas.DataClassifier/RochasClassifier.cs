@@ -289,7 +289,7 @@ namespace Rochas.DataClassifier
             }
         }
 
-        public IDictionary<string, ulong> Classify(string text, int limit = 0, string connectionString = "")
+        public IDictionary<string, ulong> Classify(string text, int limit = 0, bool matchStop = true, string connectionString = "")
         {
             if (string.IsNullOrWhiteSpace(text))
                 throw new ArgumentNullException("text");
@@ -306,9 +306,9 @@ namespace Rochas.DataClassifier
 
             IDictionary<string, ulong> result = null;
             if (string.IsNullOrWhiteSpace(connectionString))
-                result = setGroupScore(hashedWordList);
+                result = setGroupScore(hashedWordList, matchStop);
             else
-                result = setDBGroupScore(hashedWordList, connectionString);
+                result = setDBGroupScore(hashedWordList, matchStop, connectionString);
 
             var orderedResult = result.OrderByDescending(res => res.Value);
 
@@ -477,78 +477,96 @@ namespace Rochas.DataClassifier
             return true;
         }
 
-        private static IDictionary<string, ulong> setGroupScore(ConcurrentBag<ulong> hashedWordList)
+        private static IDictionary<string, ulong> setGroupScore(ConcurrentBag<ulong> hashedWordList, bool matchStop)
         {
             var result = new ConcurrentDictionary<string, ulong>();
 
-            searchTree.AsParallel().ForAll(item =>
+            try
             {
-                uint score = 0;
-                var distinctHashedWords = item.Value.Distinct();
-
-                distinctHashedWords.AsParallel().ForAll(hashedWord =>
+                searchTree.AsParallel().ForAll(item =>
                 {
-                    foreach (var userHashedWord in hashedWordList)
-                        if (hashedWord.Equals(userHashedWord))
-                            score += 1;
+                    uint score = 0;
+                    var distinctHashedWords = item.Value.Distinct();
+
+                    distinctHashedWords.AsParallel().ForAll(hashedWord =>
+                    {
+                        foreach (var userHashedWord in hashedWordList)
+                            if (hashedWord.Equals(userHashedWord))
+                                score += 1;
+                    });
+
+                    var match = (score == hashedWordList.Count);
+
+                    if (match)
+                        score += 1;
+
+                    if (score > 0)
+                    {
+                        if (!result.ContainsKey(item.Key))
+                            result.TryAdd(item.Key, score);
+                        else
+                            result[item.Key] += score;
+                    }
+
+                    if (match && matchStop)
+                        throw new Exception("Match");
                 });
-
-                if (score == hashedWordList.Count)
-                    score += 1;
-
-                if (score > 0)
-                {
-                    if (!result.ContainsKey(item.Key))
-                        result.TryAdd(item.Key, score);
-                    else
-                        result[item.Key] += score;
-                }
-            });
+            }
+            catch (Exception) { }
 
             return result;
         }
 
-        private static IDictionary<string, ulong> setDBGroupScore(ConcurrentBag<ulong> hashedWordList, string connectionString)
+        private static IDictionary<string, ulong> setDBGroupScore(ConcurrentBag<ulong> hashedWordList, bool matchStop, string connectionString)
         {
             var result = new ConcurrentDictionary<string, ulong>();
 
             KnowledgeRepository.Init(connectionString);
             var serverGroups = KnowledgeRepository.List();
 
-            serverGroups.AsParallel().ForAll(group =>
+            try
             {
-                uint score = 0;
-
-                var groupHashes = KnowledgeRepository.Get(group.Id);
-
-                if ((groupHashes != null) && (groupHashes.Hashes != null))
+                serverGroups.AsParallel().ForAll(group =>
                 {
-                    var distinctHashedWords = groupHashes.Hashes.Distinct();
+                    uint score = 0;
 
-                    distinctHashedWords.AsParallel().ForAll(hashedWord =>
+                    var groupHashes = KnowledgeRepository.Get(group.Id);
+
+                    if ((groupHashes != null) && (groupHashes.Hashes != null))
                     {
-                        foreach (var userHashedWord in hashedWordList)
-                            if (((ulong)hashedWord.Value).Equals(userHashedWord))
-                                score += 1;
-                    });
+                        var distinctHashedWords = groupHashes.Hashes.Distinct();
 
-                    if (score == hashedWordList.Count)
-                        score += 1;
+                        distinctHashedWords.AsParallel().ForAll(hashedWord =>
+                        {
+                            foreach (var userHashedWord in hashedWordList)
+                                if (((ulong)hashedWord.Value).Equals(userHashedWord))
+                                    score += 1;
+                        });
 
-                    if (score > 0)
-                    {
-                        if (!result.ContainsKey(group.Name))
-                            result.TryAdd(group.Name, score);
-                        else
-                            result[group.Name] += score;
+                        var match = (score == hashedWordList.Count);
+
+                        if (match)
+                            score += 1;
+
+                        if (score > 0)
+                        {
+                            if (!result.ContainsKey(group.Name))
+                                result.TryAdd(group.Name, score);
+                            else
+                                result[group.Name] += score;
+                        }
+
+                        if (match && matchStop)
+                            throw new Exception("Match");
                     }
-                }
-            });
+                });
+            }
+            catch (Exception) { }
 
             return result;
         }
 
-        private static Dictionary<string, ulong> setScorePercent(IOrderedEnumerable<KeyValuePair<string, ulong>> groupScore, int limit = 0)
+        private static Dictionary<string, ulong> setScorePercent(IOrderedEnumerable<KeyValuePair<string, ulong>> groupScore, int limit)
         {
             var result = new Dictionary<string, ulong>();
 
