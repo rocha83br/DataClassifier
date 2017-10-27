@@ -480,22 +480,23 @@ namespace Rochas.DataClassifier
         private static IDictionary<string, ulong> setGroupScore(ConcurrentBag<ulong> hashedWordList, bool matchStop)
         {
             var result = new ConcurrentDictionary<string, ulong>();
+            SortedSet<ulong> userHashedWords = new SortedSet<ulong>(hashedWordList.ToList());
 
             try
             {
-                searchTree.AsParallel().ForAll(item =>
+                searchTree.Where(itm => itm.Value.Any(itmv => userHashedWords.Contains(itmv))).AsParallel().ForAll(item =>
                 {
                     uint score = 0;
                     var distinctHashedWords = item.Value.Distinct();
 
                     distinctHashedWords.AsParallel().ForAll(hashedWord =>
                     {
-                        foreach (var userHashedWord in hashedWordList)
+                        foreach (var userHashedWord in userHashedWords)
                             if (hashedWord.Equals(userHashedWord))
                                 score += 1;
                     });
 
-                    var match = (score == hashedWordList.Count);
+                    var match = (score == userHashedWords.Count);
 
                     if (match)
                         score += 1;
@@ -520,16 +521,16 @@ namespace Rochas.DataClassifier
         private static IDictionary<string, ulong> setDBGroupScore(ConcurrentBag<ulong> hashedWordList, bool matchStop, string connectionString)
         {
             var result = new ConcurrentDictionary<string, ulong>();
+            SortedSet<ulong> userHashedWords = new SortedSet<ulong>(hashedWordList.ToList());
 
             KnowledgeRepository.Init(connectionString);
             var serverGroups = KnowledgeRepository.List();
 
             try
             {
-                serverGroups.AsParallel().ForAll(group =>
+                serverGroups.Where(itm => itm.Hashes.Any(itmv => userHashedWords.Contains((ulong)itmv.Value))).AsParallel().ForAll(group =>
                 {
                     uint score = 0;
-
                     var groupHashes = KnowledgeRepository.Get(group.Id);
 
                     if ((groupHashes != null) && (groupHashes.Hashes != null))
@@ -538,12 +539,12 @@ namespace Rochas.DataClassifier
 
                         distinctHashedWords.AsParallel().ForAll(hashedWord =>
                         {
-                            foreach (var userHashedWord in hashedWordList)
+                            foreach (var userHashedWord in userHashedWords)
                                 if (((ulong)hashedWord.Value).Equals(userHashedWord))
                                     score += 1;
                         });
 
-                        var match = (score == hashedWordList.Count);
+                        var match = (score == userHashedWords.Count);
 
                         if (match)
                             score += 1;
