@@ -25,15 +25,16 @@ namespace Rochas.DataClassifier
         string groupContentSeparator;
 
         readonly static ConcurrentBag<string> groupList = new ConcurrentBag<string>();
-        static Dictionary<string, SortedSet<ulong>> searchTree = new Dictionary<string, SortedSet<ulong>>();
-        readonly static ConcurrentDictionary<string, ConcurrentBag<ulong>> hashedTree = new ConcurrentDictionary<string, ConcurrentBag<ulong>>();
+        static Dictionary<string, SortedDictionary<ulong, uint>> searchTree = new Dictionary<string, SortedDictionary<ulong, uint>>();
+        readonly static ConcurrentDictionary<string, ConcurrentDictionary<ulong, uint>> hashedTree = new ConcurrentDictionary<string, ConcurrentDictionary<ulong, uint>>();
 
-        readonly static string languageChars = "àáãçéíóõúÀÁÃÇÉÍÓÕÚ";
-        readonly static string cleanLanguageChars = "aaaceioouAAACEIOOU";
+        readonly static string languageChars = "àáãçéêíóõúÀÁÃÇÉÊÍÓÕÚ";
+        readonly static string cleanLanguageChars = "aaaceeioouAAACEEIOOU";
 
         readonly static string[] specialChars = { "@", "%", "#", "/", "\\", ";", ":", ".", ",", "*", "(", ")", "[", "]", "<", ">", "+", "-", "\"", "'", "´", "`", "?", "!" };
 
         readonly static string[] skipWords = new[] {
+        // Portuguese
         "de","a","o","que","e","do","da","em","um","para","é","com","não","uma","os","no","se","na","por","mais","as","dos","como","mas","foi","ao","ele","das",
         "tem","à","seu","sua","ou","ser","quando","muito","há","nos","já","está","eu","também","só","pelo","pela","até","isso","ela","entre","era","depois","sem",
         "mesmo","aos","ter","seus","quem","nas","me","esse","eles","estão","você","tinha","foram","essa","num","nem","suas","meu","às","minha","têm","numa","pelos",
@@ -44,13 +45,22 @@ namespace Rochas.DataClassifier
         "houvesse","houvéssemos","houvessem","houver","houvermos","houverem","houverei","houverá","houveremos","houverão","houveria","houveríamos","houveriam","sou","somos","são",
         "era","éramos","eram","fui","foi","fomos","foram","fora","fôramos","seja","sejamos","sejam","fosse","fôssemos","fossem","for","formos","forem","serei","será","seremos",
         "serão","seria","seríamos","seriam","tenho","tem","temos","tém","tinha","tínhamos","tinham","tive","teve","tivemos","tiveram","tivera","tivéramos","tenha","tenhamos",
-        "tenham","tivesse","tivéssemos","tivessem","tiver","tivermos","tiverem","terei","terá","teremos","terão","teria","teríamos","teriam" };
+        "tenham","tivesse","tivéssemos","tivessem","tiver","tivermos","tiverem","terei","terá","teremos","terão","teria","teríamos","teriam",
+        // English
+         "about", "above","after","again","against","all","am","an","and","any","are","aren't","as","at","be","because","been","before","being","below","between","both",
+         "but","by","can't","cannot","could","couldn't","did","didn't","does","doesn't","doing","don't","down","during","each","few","for","from","further","had","hadn't",
+         "has","hasn't","have","haven't","having","he","he'd","he'll","he's","her","here","here's","hers","herself","him","himself","his","how","how's","i","i'd","i'll",
+         "i'm","i've","if","in","into","is","isn't","it","it's","its","itself","let's","me","more","most","mustn't","my","myself","nor","not","of","off","on","once","only",
+         "or","other","ought","our","ours","out","over","own","same","shan't","she","she'd","she'll","she's","should","shouldn't","so","some","such","than","that","that's",
+         "the","their","theirs","them","themselves","then","there","there's","these","they","they'd","they'll","they're","they've","this","those","through","to","too","under",
+         "until","up","very","was","wasn't","we","we'd","we'll","we're","we've","were","weren't","what","what's","when","when's","where","where's","which","while","who",
+         "who's","whom","why","why's","with","won't","would","wouldn't","you","you'd","you'll","you're","you've","your","yours","yourself","yourselves" };
 
         #endregion
 
         #region Constructors
 
-        public RochasClassifier(bool allowRepeat = true, bool filterChars = false, bool sensitiveCase = false, PhoneticMatchType phoneticMatchType = PhoneticMatchType.None, string groupSeparator = "")
+        public RochasClassifier(bool allowRepeat = false, bool filterChars = false, bool sensitiveCase = false, PhoneticMatchType phoneticMatchType = PhoneticMatchType.None, string groupSeparator = "")
         {
             allowHashRepetition = allowRepeat;
             useSpecialCharsFilter = filterChars;
@@ -172,10 +182,10 @@ namespace Rochas.DataClassifier
 
         public void Train(string group, string text)
         {
-            ConcurrentBag<ulong> hashedWordList = null;
+            ConcurrentDictionary<ulong, uint> hashedWordList = null;
 
             if (!hashedTree.ContainsKey(group))
-                hashedWordList = new ConcurrentBag<ulong>();
+                hashedWordList = new ConcurrentDictionary<ulong, uint>();
             else
                 hashedWordList = hashedTree[group];
 
@@ -183,7 +193,7 @@ namespace Rochas.DataClassifier
                 text = filterSpecialChars(text);
 
             foreach (var word in text.Trim().Split(' '))
-                stemmHash(word, hashedWordList);
+                stemmHash(word, hashedWordList, group);
 
             if (!hashedTree.ContainsKey(group))
                 hashedTree.TryAdd(group, hashedWordList);
@@ -278,7 +288,7 @@ namespace Rochas.DataClassifier
             var compressedContent = File.OpenText(filePath);
             var content = Compressor.UncompressText(compressedContent.ReadToEnd());
 
-            searchTree = JsonConvert.DeserializeObject<Dictionary<string, SortedSet<ulong>>>(content);
+            searchTree = JsonConvert.DeserializeObject<Dictionary<string, SortedDictionary<ulong, uint>>>(content);
 
             if (!string.IsNullOrWhiteSpace(connectionString))
             {
@@ -289,12 +299,12 @@ namespace Rochas.DataClassifier
             }
         }
 
-        public IDictionary<string, ulong> Classify(string text, int limit = 0, bool matchStop = true, string connectionString = "")
+        public IDictionary<string, uint> Classify(string text, int limit = 0, bool matchStop = true, string connectionString = "")
         {
             if (string.IsNullOrWhiteSpace(text))
                 throw new ArgumentNullException("text");
 
-            var hashedWordList = new ConcurrentBag<ulong>();
+            var hashedWordList = new ConcurrentDictionary<ulong, uint>();
 
             if (useSpecialCharsFilter)
                 text = filterSpecialChars(text);
@@ -304,7 +314,7 @@ namespace Rochas.DataClassifier
                 stemmHash(word, hashedWordList);
             });
 
-            IDictionary<string, ulong> result = null;
+            IDictionary<string, uint> result = null;
             if (string.IsNullOrWhiteSpace(connectionString))
                 result = setGroupScore(hashedWordList, matchStop);
             else
@@ -348,35 +358,50 @@ namespace Rochas.DataClassifier
             return value;
         }
 
-        private void stemmHash(string word, ConcurrentBag<ulong> hashedWordList)
+        private void stemmHash(string word, ConcurrentDictionary<ulong, uint> hashedWordList, string group = "")
         {
             var trimmedWord = word.Trim();
-            if (!string.IsNullOrWhiteSpace(trimmedWord) && !skipWords.Contains(trimmedWord))
+            if (!string.IsNullOrWhiteSpace(trimmedWord) && !group.Equals(word) && !groupContentSeparator.Equals(trimmedWord))
             {
                 using (var stemmer = PTStemmer.Stemmer.StemmerFactory())
                 {
                     string treatedWord = string.Empty;
                     ulong hashedWord = 0;
 
-                    stemmer.DisableCaching();
-                    treatedWord = stemmer.Stemming(trimmedWord.ToLower());
+                    treatedWord = trimmedWord.ToLower();
 
-                    if (phoneticType != PhoneticMatchType.None)
-                        treatedWord = filterLanguageChars(treatedWord);
-
-                    hashedWord = treatedWord.GetCustomHashCode();
-
-                    if (allowHashRepetition)
-                        hashedWordList.Add(hashedWord);
-                    else
+                    if (!skipWords.Contains(treatedWord))
                     {
-                        if (!hashedWordList.Contains(hashedWord))
-                            hashedWordList.Add(hashedWord);
-                    }
+                        stemmer.DisableCaching();
+                        treatedWord = stemmer.Stemming(treatedWord);
 
-                    if (phoneticType == PhoneticMatchType.UseSondexAlgorithm)
-                        hashedWordList.Add(RochasSoundEx.Generate(treatedWord).GetCustomHashCode());
+                        if (phoneticType != PhoneticMatchType.None)
+                            treatedWord = filterLanguageChars(treatedWord);
+
+                        hashedWord = treatedWord.GetCustomHashCode();
+
+                        addHashedWord(hashedWord, hashedWordList);
+
+                        if (phoneticType == PhoneticMatchType.UseSondexAlgorithm)
+                        {
+                            var soundExWord = RochasSoundEx.Generate(treatedWord);
+                            addHashedWord(soundExWord.GetCustomHashCode(), hashedWordList);
+                        }
+                    }
                 }
+            }
+        }
+
+        private void addHashedWord(ulong hashedWord, ConcurrentDictionary<ulong, uint> hashedWordList)
+        {
+            if (allowHashRepetition)
+                hashedWordList.TryAdd(hashedWord, 0);
+            else
+            {
+                if (!hashedWordList.ContainsKey(hashedWord))
+                    hashedWordList.TryAdd(hashedWord, 1);
+                else
+                    hashedWordList[hashedWord] += 1;
             }
         }
 
@@ -384,10 +409,10 @@ namespace Rochas.DataClassifier
         {
             foreach (var item in hashedTree)
             {
-                searchTree.Add(item.Key, new SortedSet<ulong>());
+                searchTree.Add(item.Key, new SortedDictionary<ulong, uint>());
 
                 foreach (var itemValue in item.Value)
-                    searchTree[item.Key].Add(itemValue);
+                    searchTree[item.Key].Add(itemValue.Key, itemValue.Value);
             }
         }
 
@@ -477,22 +502,22 @@ namespace Rochas.DataClassifier
             return true;
         }
 
-        private static IDictionary<string, ulong> setGroupScore(ConcurrentBag<ulong> hashedWordList, bool matchStop)
+        private IDictionary<string, uint> setGroupScore(ConcurrentDictionary<ulong, uint> hashedWordList, bool matchStop)
         {
-            var result = new ConcurrentDictionary<string, ulong>();
-            SortedSet<ulong> userHashedWords = new SortedSet<ulong>(hashedWordList.ToList());
+            var result = new ConcurrentDictionary<string, uint>();
+            SortedSet<ulong> userHashedWords = new SortedSet<ulong>(hashedWordList.Keys);
 
             try
             {
-                searchTree.Where(itm => itm.Value.Any(itmv => userHashedWords.Contains(itmv))).AsParallel().ForAll(item =>
+                searchTree.Where(itm => itm.Value.Any(itmv => userHashedWords.Contains(itmv.Key))).AsParallel().ForAll(item =>
                 {
                     uint score = 0;
-                    var distinctHashedWords = item.Value.Distinct();
+                    var hashedWords =  allowHashRepetition ? item.Value : item.Value.Distinct();
 
-                    distinctHashedWords.AsParallel().ForAll(hashedWord =>
+                    hashedWords.AsParallel().ForAll(hashedWord =>
                     {
                         foreach (var userHashedWord in userHashedWords)
-                            if (hashedWord.Equals(userHashedWord))
+                            if (hashedWord.Key.Equals(userHashedWord))
                                 score += 1;
                     });
 
@@ -518,10 +543,10 @@ namespace Rochas.DataClassifier
             return result;
         }
 
-        private static IDictionary<string, ulong> setDBGroupScore(ConcurrentBag<ulong> hashedWordList, bool matchStop, string connectionString)
+        private IDictionary<string, uint> setDBGroupScore(ConcurrentDictionary<ulong, uint> hashedWordList, bool matchStop, string connectionString)
         {
-            var result = new ConcurrentDictionary<string, ulong>();
-            SortedSet<ulong> userHashedWords = new SortedSet<ulong>(hashedWordList.ToList());
+            var result = new ConcurrentDictionary<string, uint>();
+            SortedSet<ulong> userHashedWords = new SortedSet<ulong>(hashedWordList.Keys);
 
             KnowledgeRepository.Init(connectionString);
             var serverGroups = KnowledgeRepository.List();
@@ -535,12 +560,12 @@ namespace Rochas.DataClassifier
 
                     if ((groupHashes != null) && (groupHashes.Hashes != null))
                     {
-                        var distinctHashedWords = groupHashes.Hashes.Distinct();
+                        var hashedWords = allowHashRepetition ? groupHashes.Hashes : groupHashes.Hashes.Distinct();
 
-                        distinctHashedWords.AsParallel().ForAll(hashedWord =>
+                        hashedWords.AsParallel().ForAll(hashedWord =>
                         {
                             foreach (var userHashedWord in userHashedWords)
-                                if (((ulong)hashedWord.Value).Equals(userHashedWord))
+                                if (((uint)hashedWord.Value).Equals(userHashedWord))
                                     score += 1;
                         });
 
@@ -567,14 +592,14 @@ namespace Rochas.DataClassifier
             return result;
         }
 
-        private static Dictionary<string, ulong> setScorePercent(IOrderedEnumerable<KeyValuePair<string, ulong>> groupScore, int limit)
+        private static Dictionary<string, uint> setScorePercent(IOrderedEnumerable<KeyValuePair<string, uint>> groupScore, int limit)
         {
-            var result = new Dictionary<string, ulong>();
+            var result = new Dictionary<string, uint>();
 
             if (groupScore.Any())
             {
-                ulong maxPercent = 100;
-                ulong maxScore = groupScore.Max(grp => grp.Value);
+                uint maxPercent = 100;
+                uint maxScore = groupScore.Max(grp => grp.Value);
 
                 foreach (var group in groupScore)
                 {
