@@ -23,6 +23,7 @@ namespace Rochas.DataClassifier
         bool useSensitiveCase;
         PhoneticMatchType phoneticType;
         string groupContentSeparator;
+        ushort dataCleanAdjustRatio;
 
         readonly static ConcurrentBag<string> groupList = new ConcurrentBag<string>();
         static Dictionary<string, SortedDictionary<ulong, uint>> searchTree = new Dictionary<string, SortedDictionary<ulong, uint>>();
@@ -60,12 +61,13 @@ namespace Rochas.DataClassifier
 
         #region Constructors
 
-        public RochasClassifier(bool allowRepeat = false, bool filterChars = false, bool sensitiveCase = false, PhoneticMatchType phoneticMatchType = PhoneticMatchType.None, string groupSeparator = "")
+        public RochasClassifier(bool allowRepeat = false, bool filterChars = false, bool sensitiveCase = false, PhoneticMatchType phoneticMatchType = PhoneticMatchType.None, ushort cleanAdjustRatio = 100, string groupSeparator = "")
         {
             allowHashRepetition = allowRepeat;
             useSpecialCharsFilter = filterChars;
             useSensitiveCase = sensitiveCase;
             phoneticType = phoneticMatchType;
+            dataCleanAdjustRatio = cleanAdjustRatio;            
             groupContentSeparator = groupSeparator;
         }
 
@@ -220,6 +222,8 @@ namespace Rochas.DataClassifier
             var reduceList = new ConcurrentBag<string>(rawList);
 
             mapReduce(reduceList);
+
+            cleanIrrelevantTrainingData();
 
             prepareSearchTree();
         }
@@ -458,7 +462,32 @@ namespace Rochas.DataClassifier
             var lastElapsedMinutes = Math.Round((DateTime.Now - startTime).TotalMinutes, 0);
 
             Console.WriteLine();
-            Console.WriteLine(string.Format("Finished in {0} minutes.", lastElapsedMinutes));
+            Console.WriteLine(string.Format("Training process finished in {0} minutes.", lastElapsedMinutes));
+            Console.WriteLine();
+        }
+
+        private void cleanIrrelevantTrainingData()
+        {
+            var startTime = DateTime.Now;
+            Console.WriteLine("- Start cleaning irrelevant data...");
+            Console.WriteLine();
+
+            hashedTree.AsParallel().ForAll(group =>
+            {
+                var groupWordsRelevance = group.Value.Sum(gpv => gpv.Value);
+                var groupWordsCount = group.Value.Count();
+                var cutRatio = groupWordsRelevance / (groupWordsCount * (dataCleanAdjustRatio / 100.0));
+
+                uint fake;
+                foreach (var word in group.Value)
+                    if (word.Value <= cutRatio)
+                        group.Value.TryRemove(word.Key, out fake);
+            });
+
+            var lastElapsedMinutes = Math.Round((DateTime.Now - startTime).TotalMinutes, 0);
+
+            Console.WriteLine(string.Format("- Cleaning process finished in {0} minutes.", lastElapsedMinutes));
+            Console.WriteLine();
         }
 
         private bool persistKnowledgeDB(string connectionString)
