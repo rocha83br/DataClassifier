@@ -23,7 +23,7 @@ namespace Rochas.DataClassifier
         bool useSensitiveCase;
         PhoneticMatchType phoneticType;
         string groupContentSeparator;
-        ushort dataCleanAdjustRatio;
+        float dataCleanAdjustRatio;
 
         readonly static ConcurrentBag<string> groupList = new ConcurrentBag<string>();
         static Dictionary<string, SortedDictionary<ulong, uint>> searchTree = new Dictionary<string, SortedDictionary<ulong, uint>>();
@@ -61,7 +61,7 @@ namespace Rochas.DataClassifier
 
         #region Constructors
 
-        public RochasClassifier(bool allowRepeat = false, bool filterChars = false, bool sensitiveCase = false, PhoneticMatchType phoneticMatchType = PhoneticMatchType.None, ushort cleanAdjustRatio = 100, string groupSeparator = "")
+        public RochasClassifier(bool allowRepeat = false, bool filterChars = false, bool sensitiveCase = false, PhoneticMatchType phoneticMatchType = PhoneticMatchType.None, float cleanAdjustRatio = 1, string groupSeparator = "")
         {
             allowHashRepetition = allowRepeat;
             useSpecialCharsFilter = filterChars;
@@ -223,8 +223,6 @@ namespace Rochas.DataClassifier
 
             mapReduce(reduceList);
 
-            cleanIrrelevantTrainingData();
-
             prepareSearchTree();
         }
 
@@ -289,10 +287,19 @@ namespace Rochas.DataClassifier
             if (string.IsNullOrWhiteSpace(filePath))
                 throw new ArgumentNullException("filePath");
 
-            var compressedContent = File.OpenText(filePath);
-            var content = Compressor.UncompressText(compressedContent.ReadToEnd());
+            var knowledgeBaseFiles = Directory.GetFiles(".", filePath);
 
-            searchTree = JsonConvert.DeserializeObject<Dictionary<string, SortedDictionary<ulong, uint>>>(content);
+            foreach(var fileName in knowledgeBaseFiles)
+            {
+                var compressedContent = File.OpenText(fileName);
+                var content = Compressor.UncompressText(compressedContent.ReadToEnd());
+
+                var fileSearchTree = JsonConvert.DeserializeObject<Dictionary<string, SortedDictionary<ulong, uint>>>(content);
+
+                mergeKnowledgeTree(fileSearchTree);
+            }
+
+            cleanIrrelevantTrainingData();
 
             if (!string.IsNullOrWhiteSpace(connectionString))
             {
@@ -476,7 +483,7 @@ namespace Rochas.DataClassifier
             {
                 var groupWordsRelevance = group.Value.Sum(gpv => gpv.Value);
                 var groupWordsCount = group.Value.Count();
-                var cutRatio = groupWordsRelevance / (groupWordsCount * (dataCleanAdjustRatio / 100.0));
+                var cutRatio = (groupWordsRelevance / groupWordsCount) * dataCleanAdjustRatio;
 
                 uint fake;
                 foreach (var word in group.Value)
@@ -486,8 +493,21 @@ namespace Rochas.DataClassifier
 
             var lastElapsedMinutes = Math.Round((DateTime.Now - startTime).TotalMinutes, 0);
 
-            Console.WriteLine(string.Format("- Cleaning process finished in {0} minutes.", lastElapsedMinutes));
+            Console.WriteLine(string.Format("- Cleaning process finished.", lastElapsedMinutes));
             Console.WriteLine();
+        }
+
+        private void mergeKnowledgeTree(Dictionary<string, SortedDictionary<ulong, uint>> fileSearchTree)
+        {
+            foreach (var fileTreeItem in fileSearchTree)
+                if (!searchTree.ContainsKey(fileTreeItem.Key))
+                    searchTree.Add(fileTreeItem.Key, fileTreeItem.Value);
+                else
+                {
+                    foreach (var word in fileTreeItem.Value)
+                        if (searchTree[fileTreeItem.Key].ContainsKey(word.Key))
+                            searchTree[fileTreeItem.Key][word.Key] += fileTreeItem.Value[word.Key];
+                }
         }
 
         private bool persistKnowledgeDB(string connectionString)
