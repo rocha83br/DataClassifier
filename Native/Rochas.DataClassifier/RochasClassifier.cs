@@ -297,9 +297,12 @@ namespace Rochas.DataClassifier
                 var fileSearchTree = JsonConvert.DeserializeObject<Dictionary<string, SortedDictionary<ulong, uint>>>(content);
 
                 mergeKnowledgeTree(fileSearchTree);
+
+                fileSearchTree.Clear();
+                fileSearchTree = null;
             }
 
-            cleanIrrelevantTrainingData();
+            searchTree = cleanIrrelevantTrainingData();
 
             if (!string.IsNullOrWhiteSpace(connectionString))
             {
@@ -473,28 +476,35 @@ namespace Rochas.DataClassifier
             Console.WriteLine();
         }
 
-        private void cleanIrrelevantTrainingData()
+        private Dictionary<string, SortedDictionary<ulong, uint>> cleanIrrelevantTrainingData()
         {
             var startTime = DateTime.Now;
             Console.WriteLine("- Start cleaning irrelevant data...");
             Console.WriteLine();
 
-            hashedTree.AsParallel().ForAll(group =>
+            var result = new Dictionary<string, SortedDictionary<ulong, uint>>();
+
+            foreach (var group in searchTree)
             {
                 var groupWordsRelevance = group.Value.Sum(gpv => gpv.Value);
                 var groupWordsCount = group.Value.Count();
                 var cutRatio = (groupWordsRelevance / groupWordsCount) * dataCleanAdjustRatio;
 
-                uint fake;
+                result.Add(group.Key, new SortedDictionary<ulong, uint>());
+
                 foreach (var word in group.Value)
-                    if (word.Value <= cutRatio)
-                        group.Value.TryRemove(word.Key, out fake);
-            });
+                    if (word.Value >= cutRatio)
+                        result[group.Key].Add(word.Key, word.Value);
+            }
 
             var lastElapsedMinutes = Math.Round((DateTime.Now - startTime).TotalMinutes, 0);
 
             Console.WriteLine(string.Format("- Cleaning process finished.", lastElapsedMinutes));
-            Console.WriteLine();
+
+            searchTree.Clear();
+            searchTree = null;
+
+            return result;
         }
 
         private void mergeKnowledgeTree(Dictionary<string, SortedDictionary<ulong, uint>> fileSearchTree)
