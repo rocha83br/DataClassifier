@@ -588,7 +588,7 @@ namespace Rochas.DataClassifier
                     var match = (score == userHashedWords.Count);
 
                     if (match)
-                        score += relevance;
+                        score += ((relevance / (uint)hashedWords.Count()) + 1);
 
                     if (match)
                     {
