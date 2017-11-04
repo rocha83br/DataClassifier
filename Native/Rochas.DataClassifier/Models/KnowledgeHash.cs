@@ -13,9 +13,10 @@ namespace Rochas.DataClassifier.Models
 
         }
 
-        public KnowledgeHash(int value)
+        public KnowledgeHash(int hash, int relevance)
         {
-            this.Value = value;
+            this.Hash = hash;
+            this.Relevance = relevance;
         }
 
         #endregion
@@ -28,7 +29,10 @@ namespace Rochas.DataClassifier.Models
         public int GroupId { get; set; }
 
         [Required]
-        public int Value { get; set; }
+        public int Hash { get; set; }
+
+        [Required]
+        public int Relevance { get; set; }
 
         #endregion
     }

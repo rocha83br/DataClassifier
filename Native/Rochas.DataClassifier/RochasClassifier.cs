@@ -302,7 +302,7 @@ namespace Rochas.DataClassifier
                 fileSearchTree = null;
             }
 
-            searchTree = cleanIrrelevantTrainingData();
+            //searchTree = cleanIrrelevantTrainingData();
 
             if (!string.IsNullOrWhiteSpace(connectionString))
             {
@@ -538,7 +538,8 @@ namespace Rochas.DataClassifier
             foreach (var treeItem in searchTree)
             {
                 var persistItem = new KnowledgeGroup(treeItem.Key);
-                persistItem.Hashes = treeItem.Value.AsParallel().Select(itm => new KnowledgeHash(int.Parse(itm.ToString()))).ToList();
+                persistItem.Hashes = treeItem.Value.AsParallel().Select(itm => new KnowledgeHash(int.Parse(itm.Key.ToString()),
+                                                                                                 int.Parse(itm.Value.ToString()))).ToList();
 
                 try
                 {
@@ -571,30 +572,31 @@ namespace Rochas.DataClassifier
                 searchTree.Where(itm => itm.Value.Any(itmv => userHashedWords.Contains(itmv.Key))).AsParallel().ForAll(item =>
                 {
                     uint score = 0;
+                    uint relevance = 0;
                     var hashedWords =  allowHashRepetition ? item.Value : item.Value.Distinct();
 
-                    hashedWords.AsParallel().ForAll(hashedWord =>
+                    foreach(var hashedWord in hashedWords)
                     {
                         foreach (var userHashedWord in userHashedWords)
                             if (hashedWord.Key.Equals(userHashedWord))
+                            {
                                 score += 1;
-                    });
+                                relevance += hashedWord.Value;
+                            }
+                    }
 
                     var match = (score == userHashedWords.Count);
 
                     if (match)
-                        score += 1;
+                        score += relevance;
 
-                    if (score > 0)
+                    if (match)
                     {
                         if (!result.ContainsKey(item.Key))
                             result.TryAdd(item.Key, score);
                         else
                             result[item.Key] += score;
                     }
-
-                    if (match && matchStop)
-                        throw new Exception("Match");
                 });
             }
             catch (Exception) { }
@@ -612,7 +614,7 @@ namespace Rochas.DataClassifier
 
             try
             {
-                serverGroups.Where(itm => itm.Hashes.Any(itmv => userHashedWords.Contains((ulong)itmv.Value))).AsParallel().ForAll(group =>
+                serverGroups.Where(itm => itm.Hashes.Any(itmv => userHashedWords.Contains((ulong)itmv.Hash))).AsParallel().ForAll(group =>
                 {
                     uint score = 0;
                     var groupHashes = KnowledgeRepository.Get(group.Id);
@@ -624,7 +626,7 @@ namespace Rochas.DataClassifier
                         hashedWords.AsParallel().ForAll(hashedWord =>
                         {
                             foreach (var userHashedWord in userHashedWords)
-                                if (((uint)hashedWord.Value).Equals(userHashedWord))
+                                if (((uint)hashedWord.Hash).Equals(userHashedWord))
                                     score += 1;
                         });
 
