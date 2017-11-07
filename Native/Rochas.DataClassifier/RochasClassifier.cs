@@ -26,8 +26,8 @@ namespace Rochas.DataClassifier
         float dataCleanAdjustRatio;
 
         readonly static ConcurrentBag<string> groupList = new ConcurrentBag<string>();
-        static Dictionary<string, SortedDictionary<ulong, uint>> searchTree = new Dictionary<string, SortedDictionary<ulong, uint>>();
-        readonly static ConcurrentDictionary<string, ConcurrentDictionary<ulong, uint>> hashedTree = new ConcurrentDictionary<string, ConcurrentDictionary<ulong, uint>>();
+        static Dictionary<string, SortedDictionary<ulong, int>> searchTree = new Dictionary<string, SortedDictionary<ulong, int>>();
+        readonly static ConcurrentDictionary<string, ConcurrentDictionary<ulong, int>> hashedTree = new ConcurrentDictionary<string, ConcurrentDictionary<ulong, int>>();
 
         readonly static string languageChars = "àáãçéêíóõúÀÁÃÇÉÊÍÓÕÚ";
         readonly static string cleanLanguageChars = "aaaceeioouAAACEEIOOU";
@@ -184,10 +184,10 @@ namespace Rochas.DataClassifier
 
         public void Train(string group, string text)
         {
-            ConcurrentDictionary<ulong, uint> hashedWordList = null;
+            ConcurrentDictionary<ulong, int> hashedWordList = null;
 
             if (!hashedTree.ContainsKey(group))
-                hashedWordList = new ConcurrentDictionary<ulong, uint>();
+                hashedWordList = new ConcurrentDictionary<ulong, int>();
             else
                 hashedWordList = hashedTree[group];
 
@@ -294,7 +294,7 @@ namespace Rochas.DataClassifier
                 var compressedContent = File.OpenText(fileName);
                 var content = Compressor.UncompressText(compressedContent.ReadToEnd());
 
-                var fileSearchTree = JsonConvert.DeserializeObject<Dictionary<string, SortedDictionary<ulong, uint>>>(content);
+                var fileSearchTree = JsonConvert.DeserializeObject<Dictionary<string, SortedDictionary<ulong, int>>>(content);
 
                 mergeKnowledgeTree(fileSearchTree);
 
@@ -313,12 +313,12 @@ namespace Rochas.DataClassifier
             }
         }
 
-        public IDictionary<string, uint> Classify(string text, int limit = 0, bool matchStop = true, string connectionString = "")
+        public IDictionary<string, int> Classify(string text, int limit = 0, bool matchStop = true, string connectionString = "")
         {
             if (string.IsNullOrWhiteSpace(text))
                 throw new ArgumentNullException("text");
 
-            var hashedWordList = new ConcurrentDictionary<ulong, uint>();
+            var hashedWordList = new ConcurrentDictionary<ulong, int>();
 
             if (useSpecialCharsFilter)
                 text = filterSpecialChars(text);
@@ -328,7 +328,7 @@ namespace Rochas.DataClassifier
                 stemmHash(word, hashedWordList);
             });
 
-            IDictionary<string, uint> result = null;
+            IDictionary<string, int> result = null;
             if (string.IsNullOrWhiteSpace(connectionString))
                 result = setGroupScore(hashedWordList, matchStop);
             else
@@ -372,7 +372,7 @@ namespace Rochas.DataClassifier
             return value;
         }
 
-        private void stemmHash(string word, ConcurrentDictionary<ulong, uint> hashedWordList, string group = "")
+        private void stemmHash(string word, ConcurrentDictionary<ulong, int> hashedWordList, string group = "")
         {
             var trimmedWord = word.Trim();
             if (!string.IsNullOrWhiteSpace(trimmedWord) && !group.Equals(word) && !groupContentSeparator.Equals(trimmedWord))
@@ -406,7 +406,7 @@ namespace Rochas.DataClassifier
             }
         }
 
-        private void addHashedWord(ulong hashedWord, ConcurrentDictionary<ulong, uint> hashedWordList)
+        private void addHashedWord(ulong hashedWord, ConcurrentDictionary<ulong, int> hashedWordList)
         {
             if (allowHashRepetition)
                 hashedWordList.TryAdd(hashedWord, 0);
@@ -423,7 +423,7 @@ namespace Rochas.DataClassifier
         {
             foreach (var item in hashedTree)
             {
-                searchTree.Add(item.Key, new SortedDictionary<ulong, uint>());
+                searchTree.Add(item.Key, new SortedDictionary<ulong, int>());
 
                 foreach (var itemValue in item.Value)
                     searchTree[item.Key].Add(itemValue.Key, itemValue.Value);
@@ -476,13 +476,13 @@ namespace Rochas.DataClassifier
             Console.WriteLine();
         }
 
-        private Dictionary<string, SortedDictionary<ulong, uint>> cleanIrrelevantTrainingData()
+        private Dictionary<string, SortedDictionary<ulong, int>> cleanIrrelevantTrainingData()
         {
             var startTime = DateTime.Now;
             Console.WriteLine("- Start cleaning irrelevant data...");
             Console.WriteLine();
 
-            var result = new Dictionary<string, SortedDictionary<ulong, uint>>();
+            var result = new Dictionary<string, SortedDictionary<ulong, int>>();
 
             foreach (var group in searchTree)
             {
@@ -490,7 +490,7 @@ namespace Rochas.DataClassifier
                 var groupWordsCount = group.Value.Count();
                 var cutRatio = (groupWordsRelevance / groupWordsCount) * dataCleanAdjustRatio;
 
-                result.Add(group.Key, new SortedDictionary<ulong, uint>());
+                result.Add(group.Key, new SortedDictionary<ulong, int>());
 
                 foreach (var word in group.Value)
                     if (word.Value >= cutRatio)
@@ -507,7 +507,7 @@ namespace Rochas.DataClassifier
             return result;
         }
 
-        private void mergeKnowledgeTree(Dictionary<string, SortedDictionary<ulong, uint>> fileSearchTree)
+        private void mergeKnowledgeTree(Dictionary<string, SortedDictionary<ulong, int>> fileSearchTree)
         {
             foreach (var fileTreeItem in fileSearchTree)
                 if (!searchTree.ContainsKey(fileTreeItem.Key))
@@ -562,17 +562,17 @@ namespace Rochas.DataClassifier
             return true;
         }
 
-        private IDictionary<string, uint> setGroupScore(ConcurrentDictionary<ulong, uint> hashedWordList, bool matchStop)
+        private IDictionary<string, int> setGroupScore(ConcurrentDictionary<ulong, int> hashedWordList, bool matchStop)
         {
-            var result = new ConcurrentDictionary<string, uint>();
+            var result = new ConcurrentDictionary<string, int>();
             SortedSet<ulong> userHashedWords = new SortedSet<ulong>(hashedWordList.Keys);
 
             try
             {
                 searchTree.Where(itm => itm.Value.Any(itmv => userHashedWords.Contains(itmv.Key))).AsParallel().ForAll(item =>
                 {
-                    uint score = 0;
-                    uint relevance = 0;
+                    int score = 0;
+                    int relevance = 0;
                     var hashedWords =  allowHashRepetition ? item.Value : item.Value.Distinct();
 
                     foreach(var hashedWord in hashedWords)
@@ -588,7 +588,7 @@ namespace Rochas.DataClassifier
                     var match = (score == userHashedWords.Count);
 
                     if (match)
-                        score += ((relevance * 100) / (uint)hashedWords.Count());
+                        score += ((relevance * 100) / hashedWords.Count());
 
                     if (match)
                     {
@@ -604,9 +604,9 @@ namespace Rochas.DataClassifier
             return result;
         }
 
-        private IDictionary<string, uint> setDBGroupScore(ConcurrentDictionary<ulong, uint> hashedWordList, bool matchStop, string connectionString)
+        private IDictionary<string, int> setDBGroupScore(ConcurrentDictionary<ulong, int> hashedWordList, bool matchStop, string connectionString)
         {
-            var result = new ConcurrentDictionary<string, uint>();
+            var result = new ConcurrentDictionary<string, int>();
             SortedSet<ulong> userHashedWords = new SortedSet<ulong>(hashedWordList.Keys);
 
             KnowledgeRepository.Init(connectionString);
@@ -616,7 +616,8 @@ namespace Rochas.DataClassifier
             {
                 serverGroups.Where(itm => itm.Hashes.Any(itmv => userHashedWords.Contains((ulong)itmv.Hash))).AsParallel().ForAll(group =>
                 {
-                    uint score = 0;
+                    int score = 0;
+                    int relevance = 0;
                     var groupHashes = KnowledgeRepository.Get(group.Id);
 
                     if ((groupHashes != null) && (groupHashes.Hashes != null))
@@ -626,14 +627,17 @@ namespace Rochas.DataClassifier
                         hashedWords.AsParallel().ForAll(hashedWord =>
                         {
                             foreach (var userHashedWord in userHashedWords)
-                                if (((uint)hashedWord.Hash).Equals(userHashedWord))
+                                if (hashedWord.Hash.Equals(userHashedWord))
+                                {
                                     score += 1;
+                                    relevance += hashedWord.Relevance;
+                                }
                         });
 
                         var match = (score == userHashedWords.Count);
 
                         if (match)
-                            score += 1;
+                            score += ((relevance * 100) / hashedWords.Count());
 
                         if (score > 0)
                         {
@@ -653,14 +657,14 @@ namespace Rochas.DataClassifier
             return result;
         }
 
-        private static Dictionary<string, uint> setScorePercent(IOrderedEnumerable<KeyValuePair<string, uint>> groupScore, int limit)
+        private static Dictionary<string, int> setScorePercent(IOrderedEnumerable<KeyValuePair<string, int>> groupScore, int limit)
         {
-            var result = new Dictionary<string, uint>();
+            var result = new Dictionary<string, int>();
 
             if (groupScore.Any())
             {
-                uint maxPercent = 100;
-                uint maxScore = groupScore.Max(grp => grp.Value);
+                int maxPercent = 100;
+                int maxScore = groupScore.Max(grp => grp.Value);
 
                 foreach (var group in groupScore)
                 {
