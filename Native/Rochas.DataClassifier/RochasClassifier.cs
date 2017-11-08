@@ -302,7 +302,7 @@ namespace Rochas.DataClassifier
                 fileSearchTree = null;
             }
 
-            //searchTree = cleanIrrelevantTrainingData();
+            searchTree = cleanIrrelevantTrainingData();
 
             if (!string.IsNullOrWhiteSpace(connectionString))
             {
@@ -486,14 +486,14 @@ namespace Rochas.DataClassifier
 
             foreach (var group in searchTree)
             {
-                var groupWordsRelevance = group.Value.Sum(gpv => gpv.Value);
-                var groupWordsCount = group.Value.Count();
-                var cutRatio = (groupWordsRelevance / groupWordsCount) * dataCleanAdjustRatio;
+                //var groupWordsRelevance = group.Value.Sum(gpv => gpv.Value);
+                //var groupWordsCount = group.Value.Count();
+                //var cutRatio = (groupWordsRelevance / groupWordsCount) * dataCleanAdjustRatio;
 
                 result.Add(group.Key, new SortedDictionary<ulong, int>());
 
                 foreach (var word in group.Value)
-                    if (word.Value >= cutRatio)
+                    if (word.Value > dataCleanAdjustRatio)
                         result[group.Key].Add(word.Key, word.Value);
             }
 
