@@ -486,14 +486,14 @@ namespace Rochas.DataClassifier
 
             foreach (var group in searchTree)
             {
-                //var groupWordsRelevance = group.Value.Sum(gpv => gpv.Value);
-                //var groupWordsCount = group.Value.Count();
-                //var cutRatio = (groupWordsRelevance / groupWordsCount) * dataCleanAdjustRatio;
+                var groupWordsRelevance = group.Value.Sum(gpv => gpv.Value);
+                var groupWordsCount = group.Value.Count();
+                var cutRatio = (groupWordsRelevance / groupWordsCount) * dataCleanAdjustRatio;
 
                 result.Add(group.Key, new SortedDictionary<ulong, int>());
 
                 foreach (var word in group.Value)
-                    if (word.Value > dataCleanAdjustRatio)
+                    if (word.Value > cutRatio)
                         result[group.Key].Add(word.Key, word.Value);
             }
 
@@ -590,7 +590,7 @@ namespace Rochas.DataClassifier
                     if (match)
                         score += ((relevance * 100) / hashedWords.Count());
 
-                    if (match)
+                    if (score > 0)
                     {
                         if (!result.ContainsKey(item.Key))
                             result.TryAdd(item.Key, score);
