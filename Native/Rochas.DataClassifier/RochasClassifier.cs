@@ -67,7 +67,7 @@ namespace Rochas.DataClassifier
             useSpecialCharsFilter = filterChars;
             useSensitiveCase = sensitiveCase;
             phoneticType = phoneticMatchType;
-            dataCleanAdjustRatio = cleanAdjustRatio;            
+            dataCleanAdjustRatio = cleanAdjustRatio;
             groupContentSeparator = groupSeparator;
         }
 
@@ -289,7 +289,7 @@ namespace Rochas.DataClassifier
 
             var knowledgeBaseFiles = Directory.GetFiles(".", filePath);
 
-            foreach(var fileName in knowledgeBaseFiles)
+            foreach (var fileName in knowledgeBaseFiles)
             {
                 var compressedContent = File.OpenText(fileName);
                 var content = Compressor.UncompressText(compressedContent.ReadToEnd());
@@ -574,9 +574,9 @@ namespace Rochas.DataClassifier
                 {
                     int score = 0;
                     int relevance = 0;
-                    var hashedWords =  allowHashRepetition ? item.Value : item.Value.Distinct();
+                    var hashedWords = allowHashRepetition ? item.Value : item.Value.Distinct();
 
-                    foreach(var hashedWord in hashedWords)
+                    foreach (var hashedWord in hashedWords)
                     {
                         foreach (var userHashedWord in userHashedWords)
                             if (hashedWord.Key.Equals(userHashedWord))
@@ -598,13 +598,12 @@ namespace Rochas.DataClassifier
                             var maxScore = result.Max(res => res.Value);
                             if (maxScore.Equals(score))
                             {
+                                var balanceRatio = (relevance * -1);
+
                                 if (!relevanceList.ContainsKey(item.Key))
-                                    relevanceList.TryAdd(item.Key, relevance);
+                                    relevanceList.TryAdd(item.Key, balanceRatio);
                                 else
-                                {
-                                    var balanceRatio = ((relevance * 100) / hashedWords.Count());
                                     relevanceList[item.Key] += balanceRatio;
-                                }
                             }
                             else
                             {
