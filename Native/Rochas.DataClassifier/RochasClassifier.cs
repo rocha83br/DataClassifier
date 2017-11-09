@@ -598,12 +598,10 @@ namespace Rochas.DataClassifier
                             var maxScore = result.Max(res => res.Value);
                             if (maxScore.Equals(score))
                             {
-                                var balanceRatio = (relevance * -1);
-
                                 if (!relevanceList.ContainsKey(item.Key))
-                                    relevanceList.TryAdd(item.Key, balanceRatio);
+                                    relevanceList.TryAdd(item.Key, relevance);
                                 else
-                                    relevanceList[item.Key] += balanceRatio;
+                                    relevanceList[item.Key] += relevance;
                             }
                             else
                             {
@@ -675,10 +673,7 @@ namespace Rochas.DataClassifier
                                     if (!relevanceList.ContainsKey(group.Name))
                                         relevanceList.TryAdd(group.Name, relevance);
                                     else
-                                    {
-                                        var balanceRatio = ((relevance * 100) / hashedWords.Count());
-                                        relevanceList[group.Name] += balanceRatio;
-                                    }
+                                        relevanceList[group.Name] += relevance;
                                 }
                                 else
                                 {
