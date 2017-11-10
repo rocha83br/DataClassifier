@@ -565,7 +565,6 @@ namespace Rochas.DataClassifier
         private IDictionary<string, int> setGroupScore(ConcurrentDictionary<ulong, int> hashedWordList, bool matchStop)
         {
             var result = new ConcurrentDictionary<string, int>();
-            var relevanceList = new ConcurrentDictionary<string, int>();
             SortedSet<ulong> userHashedWords = new SortedSet<ulong>(hashedWordList.Keys);
 
             try
@@ -589,27 +588,10 @@ namespace Rochas.DataClassifier
                     var match = (score == userHashedWords.Count);
 
                     if (match)
-                        score += 1;
+                        score += relevance;
 
                     if (score > 0)
                     {
-                        if (result.Count > 0)
-                        {
-                            var maxScore = result.Max(res => res.Value);
-                            if (maxScore.Equals(score))
-                            {
-                                if (!relevanceList.ContainsKey(item.Key))
-                                    relevanceList.TryAdd(item.Key, relevance);
-                                else
-                                    relevanceList[item.Key] += relevance;
-                            }
-                            else
-                            {
-                                if (score > maxScore)
-                                    relevanceList.Clear();
-                            }
-                        }
-
                         if (!result.ContainsKey(item.Key))
                             result.TryAdd(item.Key, score);
                         else
@@ -622,15 +604,12 @@ namespace Rochas.DataClassifier
             }
             catch (Exception) { }
 
-            adjustScoreRelevance(result, relevanceList);
-
             return result;
         }
 
         private IDictionary<string, int> setDBGroupScore(ConcurrentDictionary<ulong, int> hashedWordList, bool matchStop, string connectionString)
         {
             var result = new ConcurrentDictionary<string, int>();
-            var relevanceList = new ConcurrentDictionary<string, int>();
             SortedSet<ulong> userHashedWords = new SortedSet<ulong>(hashedWordList.Keys);
 
             KnowledgeRepository.Init(connectionString);
@@ -661,27 +640,10 @@ namespace Rochas.DataClassifier
                         var match = (score == userHashedWords.Count);
 
                         if (match)
-                            score += 1;
+                            score += relevance;
 
                         if (score > 0)
                         {
-                            if (result.Count > 0)
-                            {
-                                var maxScore = result.Max(res => res.Value);
-                                if (maxScore.Equals(score))
-                                {
-                                    if (!relevanceList.ContainsKey(group.Name))
-                                        relevanceList.TryAdd(group.Name, relevance);
-                                    else
-                                        relevanceList[group.Name] += relevance;
-                                }
-                                else
-                                {
-                                    if (score > maxScore)
-                                        relevanceList.Clear();
-                                }
-                            }
-
                             if (!result.ContainsKey(group.Name))
                                 result.TryAdd(group.Name, score);
                             else
@@ -695,20 +657,7 @@ namespace Rochas.DataClassifier
             }
             catch (Exception) { }
 
-            adjustScoreRelevance(result, relevanceList);
-
             return result;
-        }
-
-        private static void adjustScoreRelevance(ConcurrentDictionary<string, int> groupScore, ConcurrentDictionary<string, int> relevanceList)
-        {
-            if (groupScore.Any() && relevanceList.Any())
-            {
-                relevanceList.AsParallel().ForAll(group =>
-                {
-                    groupScore[group.Key] += relevanceList[group.Key];
-                });
-            }
         }
 
         private static Dictionary<string, int> setScorePercent(IOrderedEnumerable<KeyValuePair<string, int>> groupScore, int limit)
