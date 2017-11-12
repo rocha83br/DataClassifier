@@ -23,6 +23,7 @@ namespace Rochas.DataClassifier
         bool useSensitiveCase;
         PhoneticMatchType phoneticType;
         string groupContentSeparator;
+        string checkUpPrefixPattern;
         float dataCleanAdjustRatio;
 
         readonly static ConcurrentBag<string> groupList = new ConcurrentBag<string>();
@@ -61,7 +62,7 @@ namespace Rochas.DataClassifier
 
         #region Constructors
 
-        public RochasClassifier(bool allowRepeat = false, bool filterChars = false, bool sensitiveCase = false, PhoneticMatchType phoneticMatchType = PhoneticMatchType.None, float cleanAdjustRatio = 1, string groupSeparator = "")
+        public RochasClassifier(bool allowRepeat = false, bool filterChars = false, bool sensitiveCase = false, PhoneticMatchType phoneticMatchType = PhoneticMatchType.None, float cleanAdjustRatio = 1, string groupSeparator = "", string checkUpPattern = "")
         {
             allowHashRepetition = allowRepeat;
             useSpecialCharsFilter = filterChars;
@@ -69,6 +70,7 @@ namespace Rochas.DataClassifier
             phoneticType = phoneticMatchType;
             dataCleanAdjustRatio = cleanAdjustRatio;
             groupContentSeparator = groupSeparator;
+            checkUpPrefixPattern = checkUpPattern;
         }
 
         #endregion
@@ -587,8 +589,13 @@ namespace Rochas.DataClassifier
 
                     var match = (score == userHashedWords.Count);
 
-                    if (match)
+                    if (match && string.IsNullOrWhiteSpace(checkUpPrefixPattern))
                         score += relevance;
+                    else
+                    {
+                        var checkUpTimeValue = int.Parse(item.Key.Substring(item.Key.IndexOf(checkUpPrefixPattern) + checkUpPrefixPattern.Length));
+                        score += checkUpTimeValue;
+                    }
 
                     if (score > 0)
                     {
