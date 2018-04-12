@@ -596,7 +596,7 @@ namespace Rochas.DataClassifier
                         else
                         {
                             var checkUpTimeValue = int.Parse(item.Key.Substring(item.Key.IndexOf(checkUpPrefixPattern) + checkUpPrefixPattern.Length + 3));
-                            score -= checkUpTimeValue;
+                            score = (100000 - checkUpTimeValue);
                         }
                     }
 
