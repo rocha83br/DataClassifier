@@ -591,9 +591,9 @@ namespace Rochas.DataClassifier
 
                     if (match && string.IsNullOrWhiteSpace(checkUpPrefixPattern))
                         score += relevance;
-                    else
+                    else if (!string.IsNullOrWhiteSpace(checkUpPrefixPattern))
                     {
-                        var checkUpTimeValue = int.Parse(item.Key.Substring(item.Key.IndexOf(checkUpPrefixPattern) + checkUpPrefixPattern.Length));
+                        var checkUpTimeValue = int.Parse(item.Key.Substring(item.Key.IndexOf(checkUpPrefixPattern) + checkUpPrefixPattern.Length + 3));
                         score += checkUpTimeValue;
                     }
 
