@@ -589,15 +589,18 @@ namespace Rochas.DataClassifier
 
                     var match = (score == userHashedWords.Count);
 
-                    if (match && string.IsNullOrWhiteSpace(checkUpPrefixPattern))
-                        score += relevance;
-                    else if (!string.IsNullOrWhiteSpace(checkUpPrefixPattern))
+                    if (match)
                     {
-                        var checkUpTimeValue = int.Parse(item.Key.Substring(item.Key.IndexOf(checkUpPrefixPattern) + checkUpPrefixPattern.Length + 3));
-                        score += checkUpTimeValue;
+                        if (string.IsNullOrWhiteSpace(checkUpPrefixPattern))
+                            score += relevance;
+                        else
+                        {
+                            var checkUpTimeValue = int.Parse(item.Key.Substring(item.Key.IndexOf(checkUpPrefixPattern) + checkUpPrefixPattern.Length + 3));
+                            score -= checkUpTimeValue;
+                        }
                     }
 
-                    if (score > 0)
+                    if (score != 0)
                     {
                         if (!result.ContainsKey(item.Key))
                             result.TryAdd(item.Key, score);
