@@ -2,10 +2,9 @@
 # This .gitignore file was automatically created by Microsoft(R) Visual Studio.
 ################################################################################
 
-\bin
-\obj
-\packages
-/Native/.vs/Rochas.DataClassifier/v14
-/NETCore/.vs/Rochas.DataClassifier.NETCore/v14
-/Native/Rochas.SoundEx/.vs/Rochas.SoundEx/v14
-/Native/Rochas.KnowledBaseServer/.vs
+/.vs/Rochas.DataClassifier
+/Rochas.DataClassifier/bin/Debug/netstandard2.0
+/Rochas.DataClassifier/obj
+/Rochas.DataClassifier.TestConsole/.vs/Rochas.DataClassifier.TestConsole
+/Rochas.DataClassifier.TestConsole/bin/Debug/netcoreapp3.1
+/Rochas.DataClassifier.TestConsole/obj
