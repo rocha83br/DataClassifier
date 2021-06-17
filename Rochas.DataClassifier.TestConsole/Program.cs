@@ -23,7 +23,7 @@ namespace Rochas.DataClassifier.TestConsole
 
                 classifier.PrepareSearchTree();
 
-                var result = classifier.Classify("magnoliaceae chinese");
+                var result = classifier.Classify("magnolia chinese");
             }
         }
     }

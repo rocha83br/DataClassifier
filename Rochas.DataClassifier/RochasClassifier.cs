@@ -409,20 +409,21 @@ namespace Rochas.DataClassifier
         {
             var result = new ConcurrentDictionary<string, int>();
 
-            //searchTree.AsParallel().ForAll(item =>
-            foreach(var item in searchTree)
+            searchTree.AsParallel().ForAll(item =>
+            //foreach(var item in searchTree)
             {
                 var score = 0;
                 var distinctHashedWords = item.Value.Distinct();
 
-                //distinctHashedWords.AsParallel().ForAll(hashedWord =>
-                foreach (var hashedWord in distinctHashedWords)
+                distinctHashedWords.AsParallel().ForAll(hashedWord =>
+                //foreach (var hashedWord in distinctHashedWords)
                 {
                     foreach (var userHashedWord in hashedWordList)
                         if (hashedWord.Equals(userHashedWord))
                             score += 1;
-                };
+                });
 
+                //Match reinforcement
                 if (score == hashedWordList.Count)
                     score += 1;
 
@@ -433,7 +434,7 @@ namespace Rochas.DataClassifier
                     else
                         result[item.Key] += score;
                 }
-            }
+            });
 
             return result;
         }
