@@ -23,7 +23,20 @@ namespace Rochas.DataClassifier.TestConsole
 
                 classifier.PrepareSearchTree();
 
-                var result = classifier.Classify("magnolia chinese");
+                Console.WriteLine("Rochas Data Classifier");
+                Console.WriteLine("----------------------");
+                Console.WriteLine("Enter search term :");
+                var searchTerm = Console.ReadLine();
+
+                var result = classifier.Classify(searchTerm);
+                var consoleResult = JsonConvert.SerializeObject(result, Formatting.Indented);
+
+                Console.WriteLine();
+                Console.WriteLine("Result :");
+                Console.WriteLine(consoleResult);
+                Console.WriteLine();
+                Console.WriteLine("Press any key to exit.");
+                Console.Read();
             }
         }
     }
